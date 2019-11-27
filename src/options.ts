@@ -130,8 +130,7 @@ export function splitMessage (input: string) {
   return (input.match(/("([^"]|"\S)*"|“([^”]|”\S)*”|\S+)(?=\s|$)/g) || [])
     .map(str => str
       .replace(/^"([\s\S]*)"$/, str => str.slice(1, -1).replace(/^-/, '@@__HYPHEN_PLACEHOLDER__@@'))
-      .replace(/^“([\s\S]*)”$/, str => str.slice(1, -1).replace(/^-/, '@@__HYPHEN_PLACEHOLDER__@@'))
-    )
+      .replace(/^“([\s\S]*)”$/, str => str.slice(1, -1).replace(/^-/, '@@__HYPHEN_PLACEHOLDER__@@')))
 }
 
 export const removeBrackets = (v: string) => v.replace(/[<[].+/, '').trim()
@@ -152,7 +151,7 @@ export const findAllBrackets = (v: string) => {
     return {
       required: match[0].startsWith('<'),
       value,
-      variadic
+      variadic,
     }
   }
 

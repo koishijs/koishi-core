@@ -234,7 +234,7 @@ export default class Command {
           await config.meta.$send('调用次数已达上限')
           return
         } else {
-          usage.count ++
+          usage.count++
         }
       }
     }

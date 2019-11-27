@@ -53,7 +53,7 @@ export default class Context {
     }
     command = new Command(name, description, this, config)
     let index = 0
-    for (; index < this.app._commands.length; ++ index) {
+    for (; index < this.app._commands.length; ++index) {
       if (command.context.path < this.path) break
     }
     this.app._commands.splice(index, 0, command)

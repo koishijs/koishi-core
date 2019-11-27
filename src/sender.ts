@@ -10,7 +10,7 @@ const showSenderLog = debug('app:sender')
 export class SenderError extends Error {
   readonly name = 'SenderError'
 
-  constructor(readonly args: { [x: string]: any }, readonly url: string, readonly retcode: number) {
+  constructor (readonly args: { [x: string]: any }, readonly url: string, readonly retcode: number) {
     super(`Error when trying to send to ${url}, retcode: ${retcode}, args: ${JSON.stringify(args)}`)
     this.stack = [
       `${this.name}: Error when trying to send to ${this.url}`,

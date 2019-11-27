@@ -52,7 +52,7 @@ export class App extends Context {
   _shortcutMap: Record<string, Command> = {}
   _middlewares: [string, Middleware][] = []
   _contexts: Record<string, Context> = {
-    '/': this
+    '/': this,
   }
 
   constructor (options: AppOptions = {}) {
@@ -67,8 +67,8 @@ export class App extends Context {
     this.sender = new Sender(this.options.sendURL, this.options.token, this.receiver)
     const nameRE = escapeRegex(this.app.options.name)
     this.atMeRE = new RegExp(`^\\[CQ:at,qq=${this.app.options.selfId}\\]`)
-    this.prefixRE = new RegExp(`^(\\[CQ:at,qq=${this.app.options.selfId}\\] *|@${nameRE} +|${nameRE}[,，\s] *|\\.)`)
-    this.userPrefixRE = new RegExp(`^${nameRE}[,，\s] *`)
+    this.prefixRE = new RegExp(`^(\\[CQ:at,qq=${this.app.options.selfId}\\] *|@${nameRE} +|${nameRE}[,，\\s]+|\\.)`)
+    this.userPrefixRE = new RegExp(`^${nameRE}[,，\\s]+`)
 
     this.receiver.on('*/*/message', meta => this._applyMiddlewares(meta))
     this.middleware((meta, next) => this._preprocess(meta, next))
@@ -171,7 +171,7 @@ export class App extends Context {
         value: user,
         writable: true,
       })
-  
+
       // update talkativeness
       // ignore some group calls
       if (meta.messageType === 'group') {
@@ -240,7 +240,7 @@ export class App extends Context {
     // execute middlewares
     let index = -1
     await (async function next (fallback?: NextFunction) {
-      ++ index
+      ++index
       if (fallback) middlewares.push((_, next) => fallback(next))
       const middleware = middlewares[index]
       if (middleware) return middleware(meta, next)

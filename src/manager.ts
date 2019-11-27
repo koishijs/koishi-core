@@ -25,8 +25,8 @@ export function each (callback: (app: App) => any) {
 
 const onStartHooks = new Set<(...app: App[]) => void>()
 
-export function onStart (callback: (...app: App[]) => void) {
-  onStartHooks.add(callback)
+export function onStart (hook: (...app: App[]) => void) {
+  onStartHooks.add(hook)
 }
 
 export function start () {
@@ -35,7 +35,7 @@ export function start () {
     apps[id].start()
     appList.push(apps[id])
   }
-  for (const callback of onStartHooks) {
-    callback(...appList)
+  for (const hook of onStartHooks) {
+    hook(...appList)
   }
 }
