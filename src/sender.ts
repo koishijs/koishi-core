@@ -5,7 +5,7 @@ import { GroupMemberInfo, Status, VersionInfo, Meta, FriendInfo, GroupInfo, Cred
 import { EventEmitter } from 'events'
 import { inspect } from 'util'
 
-const log = debug('app:sender')
+const showSenderLog = debug('app:sender')
 
 export class SenderError extends Error {
   readonly name = 'SenderError'
@@ -24,17 +24,22 @@ export type RecordFormat = 'mp3' | 'amr' | 'wma' | 'm4a' | 'spx' | 'ogg' | 'wav'
 
 export default class Sender {
   messages = new Array(61).fill(0)
+  timer: NodeJS.Timeout
 
   constructor (protected sendURL: string, protected token: string, protected receiver: EventEmitter) {
-    setInterval(() => {
+    this.timer = setInterval(() => {
       this.messages.unshift(0)
       this.messages.splice(-1, 1)
     }, 1000)
   }
 
+  close () {
+    clearInterval(this.timer)
+  }
+
   protected async _post (api: string, args: Record<string, any> = {}) {
     const uri = new URL(api, this.sendURL).href
-    log('request %s %o', api, args)
+    showSenderLog('request %s %o', api, args)
     try {
       const { data } = await axios.get(uri, {
         params: snakeCase(args),
@@ -42,7 +47,7 @@ export default class Sender {
           Authorization: `Token ${this.token}`,
         },
       })
-      log('response %o', data)
+      showSenderLog('response %o', data)
       if (data.retcode === 0) {
         return camelCase(data.data)
       } else {

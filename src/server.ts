@@ -1,17 +1,19 @@
 import WebSocket from 'ws'
 import express from 'express'
-import parser from 'body-parser'
 import debug from 'debug'
+import { Server as HttpServeer } from 'http'
+import { json } from 'body-parser'
 import { createHmac } from 'crypto'
 import { camelCase } from 'koishi-utils'
 import { Meta } from './meta'
 import { App } from './app'
 
-const log = debug('app:server')
+export const showServerLog = debug('app:server')
 
 export default class Server {
-  private _server = express().use(parser.json())
+  private _server = express().use(json())
   private _socket: WebSocket
+  private httpServer: HttpServeer
 
   constructor (public app: App) {
     if (app.options.wsServer) {
@@ -28,18 +30,18 @@ export default class Server {
 
     if (app.options.secret) {
       this._server.use((req, res, next) => {
-        if (req.headers['x-signature'] === undefined) return res.status(401)
+        if (req.headers['x-signature'] === undefined) return res.sendStatus(401)
         const body = JSON.stringify(req.body)
         const sig = createHmac('sha1', app.options.secret).update(body).digest('hex')
-        if (req.headers['x-signature'] !== `sha1=${sig}`) return res.status(403)
+        if (req.headers['x-signature'] !== `sha1=${sig}`) return res.sendStatus(403)
         return next()
       })
     }
 
     this._server.use(async (req, res) => {
       const meta = camelCase(req.body) as Meta
-      log('receive %o', meta)
-      res.status(200)
+      showServerLog('receive %o', meta)
+      res.sendStatus(200)
 
       try {
         await this.addProperties(meta)
@@ -54,7 +56,7 @@ export default class Server {
     for (const path in this.app._contexts) {
       const context = this.app._contexts[path]
       const types = context._getEventTypes(meta.$path)
-      log(path, 'emit', types)
+      showServerLog(path, 'emit', types)
       types.forEach(type => context.receiver.emit(type, meta))
     }
   }
@@ -74,15 +76,17 @@ export default class Server {
     }
     if (meta.subType) meta.$path += '/' + meta.subType
     if (meta.userId && meta.messageType !== 'private') meta.$path += '/' + meta.userId
-    log('path %s', meta.$path)
+    showServerLog('path %s', meta.$path)
 
     // add context properties
     if (meta.postType === 'message') {
       if (meta.messageType === 'group') {
-        Object.defineProperty(meta, '$group', {
-          value: await this.app.database.getGroup(meta.groupId),
-          writable: true,
-        })
+        if (this.app.database) {
+          Object.defineProperty(meta, '$group', {
+            value: await this.app.database.getGroup(meta.groupId),
+            writable: true,
+          })
+        }
         meta.$send = message => this.app.sender.sendGroupMsg(meta.groupId, message)
       } else if (meta.messageType === 'discuss') {
         meta.$send = message => this.app.sender.sendDiscussMsg(meta.discussId, message)
@@ -93,11 +97,16 @@ export default class Server {
   }
 
   listen (port: number) {
-    this._server.listen(port)
-    log('listen to port', port)
+    this.httpServer = this._server.listen(port)
+    showServerLog('listen to port', port)
     for (const path in this.app._contexts) {
       const context = this.app._contexts[path]
       context.receiver.emit('connected')
     }
+  }
+
+  close () {
+    this.httpServer.close()
+    showServerLog('closed')
   }
 }

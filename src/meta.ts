@@ -5,7 +5,7 @@ export type MessageType = 'private' | 'group' | 'discuss'
 
 /** CQHTTP Meta Information */
 export interface Meta {
-  $path: string
+  $path?: string
   $user?: Observed<UserData>
   $group?: GroupData
   $send?: (message: string) => Promise<void>

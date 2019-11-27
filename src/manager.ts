@@ -14,9 +14,6 @@ export function createApp (options: AppOptions) {
   const app = new App(options)
   apps[options.selfId] = app
   assignees.push(options.selfId)
-  if (options.cqFolder) {
-    cqFolders.add(options.cqFolder)
-  }
   return app
 }
 

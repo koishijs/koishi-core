@@ -14,7 +14,6 @@ import { PoolConfig } from 'mysql'
 import { Meta } from './meta'
 
 export interface AppOptions {
-  label?: string
   port?: number
   name?: string
   token?: string
@@ -22,12 +21,8 @@ export interface AppOptions {
   sendURL?: string
   selfId?: number
   wsServer?: string
-  cqFolder?: string
   operators?: number[]
   database?: PoolConfig
-  YoudaoAppID?: string
-  YoudaoAppSecret?: string
-  WolframAlphaAppID?: string
   shareConnection?: boolean
   imageServerKey?: string,
 }
@@ -65,7 +60,7 @@ export class App extends Context {
     this.options = { ...defaultOptions, ...options }
     if (database && options.shareConnection) {
       this.database = database
-    } else {
+    } else if (options.database) {
       database = this.database = new Database(options.database)
     }
     this.server = new Server(this)
@@ -111,6 +106,11 @@ export class App extends Context {
 
   start () {
     this.server.listen(this.options.port)
+  }
+
+  close () {
+    this.server.close()
+    this.sender.close()
   }
 
   private async _preprocess (meta: Meta, next: NextFunction) {
@@ -164,32 +164,34 @@ export class App extends Context {
       fields.push('talkativeness')
     }
 
-    // attach user data
-    const user = await this.app.database.observeUser(meta.userId, 0, fields)
-    Object.defineProperty(meta, '$user', {
-      value: user,
-      writable: true,
-    })
+    if (this.database) {
+      // attach user data
+      const user = await this.app.database.observeUser(meta.userId, 0, fields)
+      Object.defineProperty(meta, '$user', {
+        value: user,
+        writable: true,
+      })
+  
+      // update talkativeness
+      // ignore some group calls
+      if (meta.messageType === 'group') {
+        const isAssignee = meta.$group.assignee === this.options.selfId
+        if (isAssignee && !parsedArgv) updateActivity(user.talkativeness, meta.groupId)
+        const noCommand = meta.$group.flag & GroupFlag.noCommand
+        const noResponse = meta.$group.flag & GroupFlag.noResponse || !isAssignee
+        const originalNext = next
+        next = (fallback?: NextFunction) => noResponse as never || originalNext(fallback)
+        if (noCommand && parsedArgv) return
+        if (noResponse && !prefix.includes(`[CQ:at,qq=${this.app.options.selfId}]`)) return
+      }
 
-    // update talkativeness
-    // ignore some group calls
-    if (meta.messageType === 'group') {
-      const isAssignee = meta.$group.assignee === this.options.selfId
-      if (isAssignee && !parsedArgv) updateActivity(user.talkativeness, meta.groupId)
-      const noCommand = meta.$group.flag & GroupFlag.noCommand
-      const noResponse = meta.$group.flag & GroupFlag.noResponse || !isAssignee
-      const originalNext = next
-      next = (fallback?: NextFunction) => noResponse as never || originalNext(fallback)
-      if (noCommand && parsedArgv) return
-      if (noResponse && !prefix.includes(`[CQ:at,qq=${this.app.options.selfId}]`)) return
-    }
-
-    // ignore some user calls
-    if (user.flag & UserFlag.ignore) return
-    if (user.ignoreEnd) {
-      const time = Date.now() / 1000
-      if (user.ignoreEnd >= time) return
-      user.ignoreEnd = 0
+      // ignore some user calls
+      if (user.flag & UserFlag.ignore) return
+      if (user.ignoreEnd) {
+        const time = Date.now() / 1000
+        if (user.ignoreEnd >= time) return
+        user.ignoreEnd = 0
+      }
     }
 
     // execute command
