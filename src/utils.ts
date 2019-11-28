@@ -87,7 +87,7 @@ export function showSuggestions (options: SuggestOptions) {
         : options.command
       const userId = meta.userId
       const contextId = getContextId(meta)
-      const fields = Array.from(command._fields)
+      const fields = Array.from(command._userFields)
       if (!fields.includes('name')) fields.push('name')
       if (!fields.includes('usage')) fields.push('usage')
       if (!fields.includes('authority')) fields.push('authority')

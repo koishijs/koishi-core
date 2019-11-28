@@ -16,6 +16,7 @@ rules:
   no-mixed-operators: off
   no-unused-vars: off
   no-return-assign: off
+  no-sequences: off
   # https://github.com/typescript-eslint/typescript-eslint/issues/1131
   no-useless-constructor: off
   one-var: off

@@ -7,7 +7,6 @@ import GroupContext, { GroupOptions } from './group'
 import DiscussContext, { DiscussOptions } from './discuss'
 import Context, { Middleware, isAncestor, NextFunction } from './context'
 import Command, { showCommandLog, ShortcutConfig, ParsedArgv } from './command'
-import { splitMessage, parseArgv } from './options'
 import { updateActivity, showSuggestions } from './utils'
 import { simplify } from 'koishi-utils'
 import { EventEmitter } from 'events'
@@ -125,7 +124,7 @@ export class App extends Context {
     const canBeCommand = meta.messageType === 'private' || prefix
     const canBeShortcut = prefix !== '.'
     if (canBeCommand && (parsedArgv = this._parseCommandLine(message, meta))) {
-      fields.push(...parsedArgv.command._fields)
+      fields.push(...parsedArgv.command._userFields)
     } else if (canBeShortcut) {
       // parse as shortcut
       for (const shortcut of this._shortcuts) {
@@ -133,13 +132,13 @@ export class App extends Context {
         if (shortcut.prefix && !canBeCommand) continue
         if (!fuzzy && message !== name) continue
         if (message.startsWith(name)) {
-          const _message = message.slice(name.length)
+          let _message = message.slice(name.length)
           if (fuzzy && !shortcut.prefix && _message.match(/^\S/)) continue
-          const argv = oneArg ? [_message.trim()] : splitMessage(_message)
-          const { args, options: parsedOptions, rawOptions } = parseArgv(argv, command)
+          if (oneArg) _message = `'${_message.trim()}'`
+          const { args, options: parsedOptions, rest, unknown } = command.parseLine(_message)
           const options = { ...parsedOptions, ...shortcut.options }
-          fields.push(...command._fields)
-          parsedArgv = { name, meta, message, rawOptions, options, args, command }
+          fields.push(...command._userFields)
+          parsedArgv = { name, meta, message, options, args, command }
           break
         }
       }
@@ -212,15 +211,24 @@ export class App extends Context {
     })
   }
 
+  _registerCommand (name: string, command: Command) {
+    const previous = this._commandMap[name]
+    if (!previous) {
+      this._commandMap[name] = command
+    } else if (previous !== command) {
+      throw new Error('duplicate command names')
+    }
+  }
+
   _parseCommandLine (message: string, meta: Meta): ParsedArgv {
     const name = message.split(/\s/, 1)[0].toLowerCase()
     const command = this._commandMap[name]
     if (command && isAncestor(command.context.path, meta.$path)) {
       // parse as command
       showCommandLog('command: %s', name)
-      const argv = splitMessage(message.slice(name.length).trimStart())
-      const { args, options, rawOptions } = parseArgv(argv, command)
-      return { name, meta, message, rawOptions, options, args, command }
+      message = message.slice(name.length).trimStart()
+      const { options, unknown, rest, args } = command.parseLine(message)
+      return { name, meta, message, options, args, command }
     }
   }
 
