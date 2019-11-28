@@ -106,7 +106,7 @@ export default class Server {
     showServerLog('listen to port', port)
     for (const path in this.app.contexts) {
       const context = this.app.contexts[path]
-      context.receiver.emit('connected')
+      context.receiver.emit('connected', this.app)
     }
   }
 

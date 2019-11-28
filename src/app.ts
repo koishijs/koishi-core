@@ -69,7 +69,7 @@ export class App extends Context {
     this.prefixRE = new RegExp(`^(\\[CQ:at,qq=${this.app.options.selfId}\\] *|@${nameRE} +|${nameRE}[,，\\s]+|\\.)`)
     this.userPrefixRE = new RegExp(`^${nameRE}[,，\\s]+`)
 
-    this.receiver.on('*/*/message', meta => this._applyMiddlewares(meta))
+    this.receiver.on('message', meta => this._applyMiddlewares(meta))
     this.middleware((meta, next) => this._preprocess(meta, next))
   }
 
@@ -251,18 +251,20 @@ export class App extends Context {
   }
 }
 
-export type AppEvent = 'message' | 'message/normal' | 'message/notice' | 'message/anonymous'
+export type AppMetaEvent = 'message' | 'message/normal' | 'message/notice' | 'message/anonymous'
   | 'message' | 'message/friend' | 'message/group' | 'message/discuss' | 'message/other'
   | 'group_upload' | 'group_admin' | 'group_admin/unset' | 'group_admin/set'
   | 'group_increase' | 'group_increase/approve' | 'group_increase/invite'
   | 'group_decrease' | 'group_decrease/leave' | 'group_decrease/kick' | 'group_decrease/kick_me'
   | 'notice' | 'notice/friend_add' | 'request' | 'request/friend'
   | 'request/group' | 'request/group/add' | 'request/group/invite'
-  | 'connected' | 'send' | 'send/group' | 'send/user' | 'send/discuss'
+  | 'send' | 'send/group' | 'send/user' | 'send/discuss'
+
+export type AppEvent = 'connected'
 
 export interface AppReceiver extends EventEmitter {
-  on (event: AppEvent, listener: (meta: Meta) => any): this
-  on (event: string, listener: (...args: any[]) => any): this
-  once (event: AppEvent, listener: (meta: Meta) => any): this
-  once (event: string, listener: (...args: any[]) => any): this
+  on (event: AppMetaEvent, listener: (meta: Meta) => any): this
+  on (event: AppEvent, listener: (app: App) => any): this
+  once (event: AppMetaEvent, listener: (meta: Meta) => any): this
+  once (event: AppEvent, listener: (app: App) => any): this
 }

@@ -25,8 +25,12 @@ export type RecordFormat = 'mp3' | 'amr' | 'wma' | 'm4a' | 'spx' | 'ogg' | 'wav'
 export default class Sender {
   messages = new Array(61).fill(0)
   timer: NodeJS.Timeout
+  headers: Record<string, any>
 
-  constructor (protected sendURL: string, protected token: string, protected receiver: EventEmitter) {
+  constructor (protected sendURL: string, token: string, protected receiver: EventEmitter) {
+    this.headers = {
+      Authorization: `Token ${token}`,
+    }
     this.timer = setInterval(() => {
       this.messages.unshift(0)
       this.messages.splice(-1, 1)
@@ -43,9 +47,7 @@ export default class Sender {
     try {
       const { data } = await axios.get(uri, {
         params: snakeCase(args),
-        headers: {
-          Authorization: `Token ${this.token}`,
-        },
+        headers: this.headers,
       })
       showSenderLog('response %o', data)
       if (data.retcode === 0) {
