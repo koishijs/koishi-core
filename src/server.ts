@@ -50,18 +50,18 @@ export default class Server {
 
       try {
         await this.addProperties(meta)
-        this._emitEvents(meta)
+        this.emitEvents(meta)
       } catch (error) {
         console.error(error)
       }
     })
   }
 
-  private _emitEvents (meta: Meta) {
-    for (const path in this.app._contexts) {
-      const context = this.app._contexts[path]
+  emitEvents (meta: Meta) {
+    for (const path in this.app.contexts) {
+      const context = this.app.contexts[path]
       const types = context._getEventTypes(meta.$path)
-      showReceiverLog(path, 'emits', types)
+      if (types.length) showReceiverLog(path, 'emits', types.join(', '))
       types.forEach(type => context.receiver.emit(type, meta))
     }
   }
@@ -104,8 +104,8 @@ export default class Server {
   listen (port: number) {
     this._httpServer = this._server.listen(port)
     showServerLog('listen to port', port)
-    for (const path in this.app._contexts) {
-      const context = this.app._contexts[path]
+    for (const path in this.app.contexts) {
+      const context = this.app.contexts[path]
       context.receiver.emit('connected')
     }
   }

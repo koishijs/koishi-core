@@ -14,13 +14,14 @@ export function isAncestor (ancestor: string, path: string) {
   return path.startsWith(ancestor) || path.replace(/\d+/, '*').startsWith(ancestor)
 }
 
+export const prefixTypes = ['user', 'discuss', 'group']
+
 export default class Context {
-  public app: App
   public sender: Sender
   public database: Database
   public receiver = new EventEmitter()
 
-  constructor (public path: string) {}
+  constructor (public path: string, public app?: App) {}
 
   plugin <U> (plugin: Plugin<this, U>, options: U = {} as any) {
     const app = Object.create(this)
@@ -77,8 +78,13 @@ export default class Context {
 
   _getEventTypes (path: string) {
     if (path.startsWith(this.path)) {
-      const segments = path.slice(this.path.length).split('/')
-      return segments.map((_, index) => segments.slice(0, index + 1).join('/'))
+      let lastEvent = ''
+      const events: string[] = []
+      for (let segment of path.slice(this.path.length).split('/')) {
+        if (!isNaN(segment as any) || prefixTypes.includes(segment)) segment = lastEvent ? '*' : ''
+        if (segment) events.push(lastEvent = lastEvent ? `${lastEvent}/${segment}` : segment)
+      }
+      return events
     } else {
       return []
     }

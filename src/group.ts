@@ -16,10 +16,9 @@ export default class GroupContext extends Context {
   public options: GroupOptions
 
   constructor (public id: number, options: GroupOptions, app: App) {
-    super(`/group/${id}/`)
+    super(`/group/${id}/`, app)
     this.options = { ...defaultGroupOptions, ...options }
-    this.plugin(authorize, this.options)
-    app.groups.add(id)
+    if (app.database) this.plugin(authorize, this.options)
   }
 }
 
@@ -28,7 +27,7 @@ interface GroupMember {
 }
 
 function authorize (ctx: GroupContext, { authority }: GroupOptions) {
-  ctx.receiver.once('connected', async () => {
+  ctx.app.receiver.once('connected', async () => {
     await ctx.database.getGroup(ctx.id, ctx.app.options.selfId)
     const memberIds = (await ctx.sender.getGroupMemberList(ctx.id)).map(m => m.userId)
     const users = await ctx.app.database.getUsers(memberIds)
@@ -62,7 +61,6 @@ export type GroupEvent = 'message' | 'message/normal' | 'message/notice' | 'mess
   | 'group_upload' | 'group_admin' | 'group_admin/unset' | 'group_admin/set'
   | 'group_increase' | 'group_increase/approve' | 'group_increase/invite'
   | 'group_decrease' | 'group_decrease/leave' | 'group_decrease/kick' | 'group_decrease/kick_me'
-  | 'connected'
 
 export interface GroupReceiver extends EventEmitter {
   on (event: GroupEvent, listener: (meta: Meta) => any): this

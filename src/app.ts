@@ -4,6 +4,7 @@ import escapeRegex from 'escape-string-regexp'
 import Database, { GroupFlag, UserFlag, UserField } from './database'
 import UserContext, { UserOptions } from './user'
 import GroupContext, { GroupOptions } from './group'
+import DiscussContext, { DiscussOptions } from './discuss'
 import Context, { Middleware, isAncestor, NextFunction } from './context'
 import Command, { showCommandLog, ShortcutConfig, ParsedArgv } from './command'
 import { splitMessage, parseArgv } from './options'
@@ -44,15 +45,15 @@ export class App extends Context {
   atMeRE: RegExp
   prefixRE: RegExp
   userPrefixRE: RegExp
-  groups = new Set<number>()
   _commands: Command[] = []
   _commandMap: Record<string, Command> = {}
   _shortcuts: ShortcutConfig[] = []
   _shortcutMap: Record<string, Command> = {}
   _middlewares: [string, Middleware][] = []
-  _contexts: Record<string, Context> = {
-    '/': this,
-  }
+  contexts: Record<string, Context> = { '/': this }
+  users = this._context('/user/')
+  groups = this._context('/group/')
+  discusses = this._context('/discuss/')
 
   constructor (options: AppOptions = {}) {
     super('/')
@@ -73,30 +74,26 @@ export class App extends Context {
     this.middleware((meta, next) => this._preprocess(meta, next))
   }
 
-  private _context (path: string, create: () => Context = () => new Context(path)) {
-    if (!this._contexts[path]) {
-      const ctx = this._contexts[path] = create()
+  private _context <T extends Context> (path: string, create: () => T = () => new Context(path) as T) {
+    if (!this.contexts[path]) {
+      const ctx = this.contexts[path] = create()
       ctx.database = this.database
       ctx.sender = this.sender
       ctx.app = this
     }
-    return this._contexts[path]
+    return this.contexts[path] as T
+  }
+
+  discuss (id: number, options: DiscussOptions = {}) {
+    return this._context(`/discuss/${id}/`, () => new DiscussContext(id, options, this))
   }
 
   group (id: number, options: GroupOptions = {}) {
     return this._context(`/group/${id}/`, () => new GroupContext(id, options, this))
   }
 
-  allGroups () {
-    return this._context('/group/')
-  }
-
   user (id: number, options: UserOptions = {}) {
-    return this._context(`/user/${id}/`, () => new GroupContext(id, options, this))
-  }
-
-  allUsers () {
-    return this._context('/user/')
+    return this._context(`/user/${id}/`, () => new UserContext(id, options, this))
   }
 
   start () {
@@ -244,33 +241,20 @@ export class App extends Context {
     // flush user data
     if (meta.$user) await meta.$user._update()
   }
-
-  _getEventTypes (path: string) {
-    const capture = /^\/(\w+\/)\d+\//.exec(path)
-    if (capture) {
-      const prefixes = [capture[1] + '*/', capture[0].slice(1)]
-      const segments = path.slice(capture[0].length).split('/')
-      const types = [].concat(...prefixes.map(prefix => segments.map((_, index) => prefix + segments.slice(0, index + 1).join('/'))))
-      if (path.includes('message')) types.push('*/*/message')
-      return types
-    } else {
-      return super._getEventTypes(path)
-    }
-  }
 }
 
-export type AppEvent = 'group/*/message' | 'group/*/message/normal' | 'group/*/message/notice' | 'group/*/message/anonymous'
-  | 'group/*/group_upload' | 'group/*/group_admin' | 'group/*/group_admin/unset' | 'group/*/group_admin/set'
-  | 'group/*/group_increase' | 'group/*/group_increase/approve' | 'group/*/group_increase/invite'
-  | 'group/*/group_decrease' | 'group/*/group_decrease/leave' | 'group/*/group_decrease/kick' | 'group/*/group_decrease/kick_me'
-  | 'user/*/message' | 'user/*/message/friend' | 'user/*/message/group' | 'user/*/message/discuss' | 'user/*/message/other'
-  | 'discuss/*/message' | 'notice' | 'notice/friend_add' | 'request' | 'request/friend'
-  | 'request/group' | 'request/group/add' | 'request/group/invite' | '*/*/message' | 'connected'
-  | 'send' | 'send/group' | 'send/user' | 'send/discuss'
+export type AppEvent = 'message' | 'message/normal' | 'message/notice' | 'message/anonymous'
+  | 'message' | 'message/friend' | 'message/group' | 'message/discuss' | 'message/other'
+  | 'group_upload' | 'group_admin' | 'group_admin/unset' | 'group_admin/set'
+  | 'group_increase' | 'group_increase/approve' | 'group_increase/invite'
+  | 'group_decrease' | 'group_decrease/leave' | 'group_decrease/kick' | 'group_decrease/kick_me'
+  | 'notice' | 'notice/friend_add' | 'request' | 'request/friend'
+  | 'request/group' | 'request/group/add' | 'request/group/invite'
+  | 'connected' | 'send' | 'send/group' | 'send/user' | 'send/discuss'
 
 export interface AppReceiver extends EventEmitter {
   on (event: AppEvent, listener: (meta: Meta) => any): this
-  on (event: string, listener: (meta: Meta) => any): this
+  on (event: string, listener: (...args: any[]) => any): this
   once (event: AppEvent, listener: (meta: Meta) => any): this
-  once (event: string, listener: (meta: Meta) => any): this
+  once (event: string, listener: (...args: any[]) => any): this
 }

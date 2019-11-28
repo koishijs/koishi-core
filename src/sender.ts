@@ -202,8 +202,6 @@ export default class Sender {
   }
 
   getGroupMemberList (groupId: number): Promise<GroupMemberInfo[]> {
-    // FIXME: no *
-    if (typeof groupId !== 'number') return Promise.resolve([])
     return this._post('get_group_member_list', { groupId })
   }
 
