@@ -2,8 +2,8 @@ import Server from './server'
 import Sender from './sender'
 import escapeRegex from 'escape-string-regexp'
 import Database, { GroupFlag, UserFlag, UserField } from './database'
-import UserContext, { UserOptions, MultiUserContext } from './user'
-import GroupContext, { GroupOptions, MultiGroupContext } from './group'
+import UserContext, { UserOptions } from './user'
+import GroupContext, { GroupOptions } from './group'
 import Context, { Middleware, isAncestor, NextFunction } from './context'
 import Command, { showCommandLog, ShortcutConfig, ParsedArgv } from './command'
 import { splitMessage, parseArgv } from './options'
@@ -37,7 +37,6 @@ let database: Database
 
 export class App extends Context {
   app = this
-  path = '/'
   server: Server
   options: AppOptions
   database: Database
@@ -56,7 +55,7 @@ export class App extends Context {
   }
 
   constructor (options: AppOptions = {}) {
-    super()
+    super('/')
     this.options = { ...defaultOptions, ...options }
     if (database && options.shareConnection) {
       this.database = database
@@ -74,34 +73,30 @@ export class App extends Context {
     this.middleware((meta, next) => this._preprocess(meta, next))
   }
 
-  group (groupId: number, options: GroupOptions = {}) {
-    const path = `/group/${groupId}/`
+  private _context (path: string, create: () => Context = () => new Context(path)) {
     if (!this._contexts[path]) {
-      this._contexts[path] = new GroupContext(groupId, options, this)
+      const ctx = this._contexts[path] = create()
+      ctx.database = this.database
+      ctx.sender = this.sender
+      ctx.app = this
     }
-    return this._contexts[path] as GroupContext
+    return this._contexts[path]
   }
 
-  allGroups (options: GroupOptions = {}) {
-    if (!this._contexts['/group/*/']) {
-      this._contexts['/group/*/'] = new MultiGroupContext(options, this)
-    }
-    return this._contexts['/group/*/'] as MultiGroupContext
+  group (id: number, options: GroupOptions = {}) {
+    return this._context(`/group/${id}/`, () => new GroupContext(id, options, this))
   }
 
-  user (userId: number, options: UserOptions = {}) {
-    const path = `/private/${userId}/`
-    if (!this._contexts[path]) {
-      this._contexts[path] = new UserContext(userId, options, this)
-    }
-    return this._contexts[path] as UserContext
+  allGroups () {
+    return this._context('/group/')
   }
 
-  allUsers (options: UserOptions = {}) {
-    if (!this._contexts['/user/*/']) {
-      this._contexts['/user/*/'] = new MultiUserContext(options, this)
-    }
-    return this._contexts['/user/*/'] as MultiUserContext
+  user (id: number, options: UserOptions = {}) {
+    return this._context(`/user/${id}/`, () => new GroupContext(id, options, this))
+  }
+
+  allUsers () {
+    return this._context('/user/')
   }
 
   start () {
@@ -247,7 +242,7 @@ export class App extends Context {
     })()
 
     // flush user data
-    if (meta.$user) await meta.$user.update()
+    if (meta.$user) await meta.$user._update()
   }
 
   _getEventTypes (path: string) {

@@ -15,16 +15,11 @@ export default class GroupContext extends Context {
   public receiver: GroupReceiver
   public options: GroupOptions
 
-  constructor (public id: number, options: GroupOptions, public app: App) {
-    super()
-    this.path = `/group/${id}/`
-    this.sender = app.sender
-    this.database = app.database
+  constructor (public id: number, options: GroupOptions, app: App) {
+    super(`/group/${id}/`)
     this.options = { ...defaultGroupOptions, ...options }
     this.plugin(authorize, this.options)
-    if (id as any !== '*') {
-      app.groups.add(id)
-    }
+    app.groups.add(id)
   }
 }
 
@@ -33,9 +28,6 @@ interface GroupMember {
 }
 
 function authorize (ctx: GroupContext, { authority }: GroupOptions) {
-  // FIXME: no *
-  if (ctx.id as any === '*') return
-
   ctx.receiver.once('connected', async () => {
     await ctx.database.getGroup(ctx.id, ctx.app.options.selfId)
     const memberIds = (await ctx.sender.getGroupMemberList(ctx.id)).map(m => m.userId)
@@ -47,7 +39,6 @@ function authorize (ctx: GroupContext, { authority }: GroupOptions) {
       return user && user.authority < authority
     })
 
-    // TODO: set multiple
     for (const id of insertIds) {
       await ctx.database.getUser(id, authority)
     }
@@ -76,10 +67,4 @@ export type GroupEvent = 'message' | 'message/normal' | 'message/notice' | 'mess
 export interface GroupReceiver extends EventEmitter {
   on (event: GroupEvent, listener: (meta: Meta) => any): this
   once (event: GroupEvent, listener: (meta: Meta) => any): this
-}
-
-export class MultiGroupContext extends GroupContext {
-  constructor (options: GroupOptions, public app: App) {
-    super('*' as any, options, app)
-  }
 }

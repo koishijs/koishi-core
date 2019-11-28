@@ -16,10 +16,11 @@ export function isAncestor (ancestor: string, path: string) {
 
 export default class Context {
   public app: App
-  public path: string
   public sender: Sender
   public database: Database
   public receiver = new EventEmitter()
+
+  constructor (public path: string) {}
 
   plugin <U> (plugin: Plugin<this, U>, options: U = {} as any) {
     const app = Object.create(this)

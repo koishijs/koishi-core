@@ -1,19 +1,23 @@
 import WebSocket from 'ws'
 import express from 'express'
 import debug from 'debug'
-import { Server as HttpServeer } from 'http'
+import { Server as HttpServer } from 'http'
 import { json } from 'body-parser'
 import { createHmac } from 'crypto'
 import { camelCase } from 'koishi-utils'
 import { Meta } from './meta'
 import { App } from './app'
 
-export const showServerLog = debug('app:server')
+export const showServerLog = debug('koishi:server')
+export const showReceiverLog = debug('koishi:receiver')
+
+// @ts-ignore: @types/debug does not include the property
+showServerLog.inspectOpts.depth = 0
 
 export default class Server {
   private _server = express().use(json())
   private _socket: WebSocket
-  private httpServer: HttpServeer
+  private _httpServer: HttpServer
 
   constructor (public app: App) {
     if (app.options.wsServer) {
@@ -30,10 +34,11 @@ export default class Server {
 
     if (app.options.secret) {
       this._server.use((req, res, next) => {
-        if (req.headers['x-signature'] === undefined) return res.sendStatus(401)
+        const signature = req.header('x-signature')
+        if (!signature) return res.sendStatus(401)
         const body = JSON.stringify(req.body)
         const sig = createHmac('sha1', app.options.secret).update(body).digest('hex')
-        if (req.headers['x-signature'] !== `sha1=${sig}`) return res.sendStatus(403)
+        if (signature !== `sha1=${sig}`) return res.sendStatus(403)
         return next()
       })
     }
@@ -56,7 +61,7 @@ export default class Server {
     for (const path in this.app._contexts) {
       const context = this.app._contexts[path]
       const types = context._getEventTypes(meta.$path)
-      showServerLog(path, 'emit', types)
+      showReceiverLog(path, 'emits', types)
       types.forEach(type => context.receiver.emit(type, meta))
     }
   }
@@ -76,7 +81,7 @@ export default class Server {
     }
     if (meta.subType) meta.$path += '/' + meta.subType
     if (meta.userId && meta.messageType !== 'private') meta.$path += '/' + meta.userId
-    showServerLog('path %s', meta.$path)
+    showReceiverLog('path %s', meta.$path)
 
     // add context properties
     if (meta.postType === 'message') {
@@ -97,7 +102,7 @@ export default class Server {
   }
 
   listen (port: number) {
-    this.httpServer = this._server.listen(port)
+    this._httpServer = this._server.listen(port)
     showServerLog('listen to port', port)
     for (const path in this.app._contexts) {
       const context = this.app._contexts[path]
@@ -106,7 +111,7 @@ export default class Server {
   }
 
   close () {
-    this.httpServer.close()
+    this._httpServer.close()
     showServerLog('closed')
   }
 }

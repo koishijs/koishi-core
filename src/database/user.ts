@@ -1,6 +1,5 @@
 import { Database, joinKeys, formatValues, arrayTypes } from './database'
-import { Observed, observe } from '../observer'
-import { complement } from 'koishi-utils'
+import { Observed, observe, complement } from 'koishi-utils'
 import { Activity } from '../utils'
 
 declare module './database' {
@@ -123,16 +122,16 @@ Database.prototype.setUser = async function (this: Database, userId, data) {
 Database.prototype.observeUser = async function (this: Database, user, defaultAuthority = 0, fields = userDataKeys) {
   if (typeof user === 'number') {
     const data = await this.getUser(user, defaultAuthority, fields)
-    return data && observe(data, `user ${user}`, diff => this.setUser(user, diff))
+    return data && observe(data, diff => this.setUser(user, diff), `user ${user}`)
   } else {
     const additionalFields = complement(fields, Object.keys(user))
     const additionalData = additionalFields.length
       ? await this.getUser(user.id, defaultAuthority, complement(fields, Object.keys(user)))
       : {} as Partial<UserData>
     if ('_diff' in user) {
-      return (user as User).merge(additionalData)
+      return (user as User)._merge(additionalData)
     } else {
-      return observe(Object.assign(user, additionalData), `user ${user.id}`, diff => this.setUser(user.id, diff))
+      return observe(Object.assign(user, additionalData), diff => this.setUser(user.id, diff), `user ${user.id}`)
     }
   }
 }

@@ -11,7 +11,6 @@ export * from './context'
 export * from './database'
 export * from './manager'
 export * from './meta'
-export * from './observer'
 export * from './utils'
 
 export { Command, Context, Database, GroupContext, UserContext, Sender }

@@ -1,12 +1,11 @@
-import { UserData, GroupData } from './database'
-import { Observed } from './observer'
+import { GroupData, User } from './database'
 
 export type MessageType = 'private' | 'group' | 'discuss'
 
 /** CQHTTP Meta Information */
 export interface Meta {
   $path?: string
-  $user?: Observed<UserData>
+  $user?: User
   $group?: GroupData
   $send?: (message: string) => Promise<void>
   postType?: 'message' | 'notice' | 'request'| 'meta_event'
