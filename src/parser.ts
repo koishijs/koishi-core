@@ -149,6 +149,21 @@ export function parseLine (source: string, argsConfig: CommandArgument[], optsCo
   const options: Record<string, any> = {}
   const result: ParsedResult = { source, args, unknown, options, rest: '' }
 
+  function handleOption (name: string, knownValue: any, unknownValue: any) {
+    const config = optsConfig[name]
+    if (config) {
+      for (const alias of config.camels) {
+        options[alias] = !config.negated.includes(alias) && knownValue
+      }
+    } else {
+      // unknown option name
+      options[camelCase(name)] = unknownValue
+      if (!unknown.includes(name)) {
+        unknown.push(name)
+      }
+    }
+  }
+
   while (source) {
     // long argument
     if (source[0] !== '-' && argsConfig[args.length] && argsConfig[args.length].noSegment) {
@@ -177,17 +192,7 @@ export function parseLine (source: string, argsConfig: CommandArgument[], optsCo
     }
     if (arg.slice(i, i + 3) === 'no-') {
       name = arg.slice(i + 3)
-      const config = optsConfig[name]
-      if (config) {
-        for (const alias of config.camels) {
-          options[alias] = !config.negated.includes(alias)
-        }
-      } else {
-        options[camelCase(name)] = false
-        if (!unknown.includes(name)) {
-          unknown.push(name)
-        }
-      }
+      handleOption(name, true, false)
       continue
     }
 
@@ -214,20 +219,8 @@ export function parseLine (source: string, argsConfig: CommandArgument[], optsCo
     for (j = 0; j < names.length; j++) {
       name = names[j]
       const config = optsConfig[name]
-
-      // parse value
       const value = parseValue((j + 1 < names.length) || param, quoted, config)
-      if (config) {
-        for (const alias of config.camels) {
-          options[alias] = !config.negated.includes(alias) && value
-        }
-      } else {
-        // unknown option name
-        options[camelCase(name)] = value
-        if (!unknown.includes(name)) {
-          unknown.push(name)
-        }
-      }
+      handleOption(name, value, value)
     }
   }
 
