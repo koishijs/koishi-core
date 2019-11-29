@@ -19,6 +19,8 @@ beforeAll(() => {
     .command('cmd2 [foo] [bar...]')
     .option('-a [alpha]', '', { isString: true })
     .option('-b [beta]', '', { default: 1000 })
+    .option('-C, --no-gamma')
+    .option('-D, --no-delta')
 })
 
 describe('arguments', () => {
@@ -73,8 +75,13 @@ describe('options', () => {
     expect(result.options).toMatchObject({ unknownGamma: 'c', d: true, e: 10 })
   })
 
+  test('negated options', () => {
+    result = cmd2.parseLine('-C --no-delta -E --no-epsilon')
+    expect(result.options).toMatchObject({ C: true, gamma: false, D: true, delta: false, E: true, epsilon: false })
+  })
+
   test('option configuration', () => {
-    result = cmd2.parseLine('-a 123 -bc 456')
-    expect(result.options).toMatchObject({ a: '123', b: 1000, c: 456 })
+    result = cmd2.parseLine('-a 123 -bd 456')
+    expect(result.options).toMatchObject({ a: '123', b: 1000, d: 456 })
   })
 })

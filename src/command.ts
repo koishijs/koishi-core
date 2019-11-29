@@ -206,7 +206,7 @@ export class Command {
       return config.meta.$send('权限不足')
     }
     for (const option of this._options) {
-      if (option.camelNames[0] in config.options) {
+      if (option.camels[0] in config.options) {
         if (option.authority > user.authority) return config.meta.$send('权限不足')
         if (option.notUsage) isUsage = false
       }

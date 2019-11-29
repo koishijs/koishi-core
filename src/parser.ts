@@ -54,8 +54,8 @@ export interface OptionConfig {
 export interface CommandOption extends OptionConfig {
   rawName: string
   names: string[]
-  camelNames: string[]
-  negated: boolean
+  camels: string[]
+  negated: string[]
   required: boolean
   isBoolean: boolean
   description: string
@@ -64,19 +64,21 @@ export interface CommandOption extends OptionConfig {
 export function parseOption (rawName: string, description: string, config: OptionConfig = {}): CommandOption {
   config = { authority: 0, ...config }
 
-  const camelNames: string[] = []
-  let negated = false, required = false, isBoolean = false
+  const negated: string[] = []
+  const camels: string[] = []
+  let required = false, isBoolean = false
   const names = removeBrackets(rawName).split(',').map((name: string) => {
     name = name.trim().replace(/^-{1,2}/, '')
     if (name.startsWith('no-')) {
-      negated = true
       name = name.slice(3)
+      const camel = camelCase(name)
+      negated.push(camel)
+      camels.push(camel)
+    } else {
+      camels.push(camelCase(name))
     }
-    camelNames.push(camelCase(name))
     return name
   })
-
-  if (negated) config.default = true
 
   if (rawName.includes('<')) {
     required = true
@@ -88,7 +90,7 @@ export function parseOption (rawName: string, description: string, config: Optio
     ...config,
     rawName,
     names,
-    camelNames,
+    camels,
     negated,
     required,
     isBoolean,
@@ -117,7 +119,7 @@ function parseArg0 (source: string): ParsedArg0 {
   return { content, quoted: false, rest: source.slice(content.length).trimLeft() }
 }
 
-export function parseValue (source: string | true, config: CommandOption, quoted: boolean) {
+export function parseValue (source: string | true, quoted: boolean, config: CommandOption) {
   // quoted empty string
   if (source === '' && quoted) return ''
   // no explicit parameter
@@ -148,17 +150,22 @@ export function parseLine (source: string, argsConfig: CommandArgument[], optsCo
   const result: ParsedResult = { source, args, unknown, options, rest: '' }
 
   while (source) {
+    // long argument
     if (source[0] !== '-' && argsConfig[args.length] && argsConfig[args.length].noSegment) {
       args.push(source)
       break
     }
+
+    // parse argv0
     arg0 = parseArg0(source)
     arg = arg0.content
     source = arg0.rest
     if (arg[0] !== '-' || arg0.quoted) {
+      // normal argument
       args.push(arg)
       continue
     } else if (arg === '--') {
+      // rest part
       result.rest = arg0.rest
       break
     }
@@ -170,10 +177,17 @@ export function parseLine (source: string, argsConfig: CommandArgument[], optsCo
     }
     if (arg.slice(i, i + 3) === 'no-') {
       name = arg.slice(i + 3)
-      if (!optsConfig[name] && !unknown.includes(name)) {
-        unknown.push(name)
+      const config = optsConfig[name]
+      if (config) {
+        for (const alias of config.camels) {
+          options[alias] = !config.negated.includes(alias)
+        }
+      } else {
+        options[camelCase(name)] = false
+        if (!unknown.includes(name)) {
+          unknown.push(name)
+        }
       }
-      options[name] = false
       continue
     }
 
@@ -196,24 +210,28 @@ export function parseLine (source: string, argsConfig: CommandArgument[], optsCo
       source = arg0.rest
     }
 
-    // handle names
+    // handle each name
     for (j = 0; j < names.length; j++) {
       name = names[j]
       const config = optsConfig[name]
-      if (!config && !unknown.includes(name)) {
-        unknown.push(name)
-      }
-      const value = parseValue((j + 1 < names.length) || param, config, quoted)
+
+      // parse value
+      const value = parseValue((j + 1 < names.length) || param, quoted, config)
       if (config) {
-        for (const alias of config.camelNames) {
-          options[alias] = value
+        for (const alias of config.camels) {
+          options[alias] = !config.negated.includes(alias) && value
         }
       } else {
+        // unknown option name
         options[camelCase(name)] = value
+        if (!unknown.includes(name)) {
+          unknown.push(name)
+        }
       }
     }
   }
 
+  // fill rest of args
   const diff = argsConfig.length - args.length
   if (diff > 0) args.push(...new Array(diff).fill(''))
 
