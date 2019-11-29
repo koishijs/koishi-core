@@ -1,106 +1,10 @@
+import { CommandOption, CommandArgument, OptionConfig, removeBrackets, parseArguments, parseOption, parseLine } from './parser'
+import { Context, isAncestor, NextFunction } from './context'
 import { UserData, UserField } from './database'
 import { Meta } from './meta'
 import debug from 'debug'
-import Context, { isAncestor, NextFunction } from './context'
-import { camelCase } from 'koishi-utils'
-
-export interface OptionConfig {
-  default?: any
-  type?: any
-  hidden?: boolean
-  authority?: number
-  notUsage?: boolean
-}
-
-export interface CommandOption extends OptionConfig {
-  rawName: string
-  names: string[]
-  camelNames: string[]
-  negated: boolean
-  required: boolean
-  isBoolean: boolean
-  description: string
-}
-
-export function removeBrackets (source: string) {
-  return source.replace(/[<[].+/, '').trim()
-}
-
-export function parseOption (rawName: string, description: string, config: OptionConfig = {}): CommandOption {
-  config = { authority: 0, ...config }
-
-  const camelNames: string[] = []
-  let negated = false, required = false, isBoolean = false
-  const names = removeBrackets(rawName).split(',').map((name: string) => {
-    name = name.trim().replace(/^-{1,2}/, '')
-    if (name.startsWith('no-')) {
-      negated = true
-      name = name.slice(3)
-    }
-    camelNames.push(camelCase(name))
-    return name
-  })
-
-  if (negated) config.default = true
-
-  if (rawName.includes('<')) {
-    required = true
-  } else if (!rawName.includes('[')) {
-    isBoolean = true
-  }
-
-  return {
-    ...config,
-    rawName,
-    names,
-    camelNames,
-    negated,
-    required,
-    isBoolean,
-    description,
-  }
-}
 
 export const showCommandLog = debug('app:command')
-
-const ANGLED_BRACKET_REGEXP = /<([^>]+)>/g
-const SQUARE_BRACKET_REGEXP = /\[([^\]]+)\]/g
-
-interface CommandArgument {
-  required: boolean
-  variadic: boolean
-  noSegment: boolean
-  name: string
-}
-
-function parseBracket (name: string, required: boolean): CommandArgument {
-  let variadic = false, noSegment = false
-  if (name.startsWith('...')) {
-    name = name.slice(3)
-    variadic = true
-  } else if (name.endsWith('...')) {
-    name = name.slice(0, -3)
-    noSegment = true
-  }
-  return {
-    name,
-    required,
-    variadic,
-    noSegment,
-  }
-}
-
-export function parseArguments (source: string) {
-  let capture: RegExpExecArray
-  const result: CommandArgument[] = []
-  while ((capture = ANGLED_BRACKET_REGEXP.exec(source))) {
-    result.push(parseBracket(capture[1], true))
-  }
-  while ((capture = SQUARE_BRACKET_REGEXP.exec(source))) {
-    result.push(parseBracket(capture[1], false))
-  }
-  return result
-}
 
 export interface ParsedArgv {
   meta: Meta
@@ -118,6 +22,7 @@ export type UserType <T> = T | ((user: UserData, meta: Meta) => T)
 export interface CommandConfig {
   /** disallow unknown options */
   strict?: boolean
+  /** usage identifier */
   usageName?: string
   authority?: number
   authorityHint?: string
@@ -145,16 +50,16 @@ export interface ShortcutConfig {
   options?: Record<string, any>
 }
 
-export default class Command {
-  _action?: (this: Command, config: ParsedArgv, ...args: any[]) => any
-  options: CommandOption[]
+export class Command {
   name: string
-  args: CommandArgument[]
+
+  _action?: (this: Command, config: ParsedArgv, ...args: any[]) => any
+  _options: CommandOption[]
+  _argDef: CommandArgument[]
   _usage?: string
-  versionNumber?: string
   _examples: string[]
-  children: Command[] = []
-  parent: Command = null
+  _children: Command[] = []
+  _parent: Command = null
   _shortcuts: Record<string, ShortcutConfig> = {}
   _optionMap: Record<string, CommandOption> = {}
   _config: CommandConfig
@@ -162,9 +67,9 @@ export default class Command {
   _userFields = new Set<UserField>()
 
   constructor (public rawName: string, public description: string, public context: Context, config: CommandConfig) {
-    this.options = []
+    this._options = []
     this.name = removeBrackets(rawName)
-    this.args = parseArguments(rawName)
+    this._argDef = parseArguments(rawName)
     this._examples = []
     this._config = { ...defaultConfig, ...config }
     context.app._registerCommand(this.name, this)
@@ -197,9 +102,9 @@ export default class Command {
   subcommand (name: string, description = '', config: CommandConfig = {}) {
     if (name.startsWith('.')) name = this.name + name
     const command = this.context.command(name, description, config)
-    if (!command.parent) {
-      command.parent = this
-      this.children.push(command)
+    if (!command._parent) {
+      command._parent = this
+      this._children.push(command)
     }
     return command
   }
@@ -232,9 +137,9 @@ export default class Command {
    * @param description option description
    * @param config option config
    */
-  option (rawName: string, description: string, config?: OptionConfig) {
+  option (rawName: string, description = '', config?: OptionConfig) {
     const option = parseOption(rawName, description, config)
-    this.options.push(option)
+    this._options.push(option)
     for (const name of option.names) {
       // FIXME: no- prefix conflict
       this._optionMap[name] = option
@@ -276,73 +181,12 @@ export default class Command {
   }
 
   parseLine (source: string) {
-    let arg: string, rest: string, name: string
-    const args: string[] = []
-    const unknown = new Set<string>()
-    const options: Record<string, any> = {}
-    while ([arg, source = ''] = source.split(/\s+/, 1), arg) {
-      // TODO: handle quotes
-      if (arg[0] !== '-') {
-        args.push(arg)
-        continue
-      } else if (arg === '--') {
-        rest = arg
-        break
-      }
-
-      // find -
-      let i = 0
-      for (; i < arg.length; ++i) {
-        if (arg.charCodeAt(i) !== 45) break
-      }
-      if (arg.slice(i, i + 3) === 'no-') {
-        name = arg.slice(i + 3)
-        if (this._config.strict && !this._optionMap[name]) {
-          unknown.add(name)
-        }
-        options[name] = false
-        continue
-      }
-
-      // find =
-      let j = i + 1
-      for (; j < arg.length; j++) {
-        if (arg.charCodeAt(j) === 61) break
-      }
-      name = arg.slice(i, j)
-      const names = i === 2 ? [name] : name
-
-      // get value
-      let value: any = arg.slice(++j)
-      if (!value && source && source.charCodeAt(0) !== 45) {
-        [value, source = ''] = source.split(/\s+/, 1)
-      }
-      for (j = 0; j < names.length; j++) {
-        name = names[j]
-        if (this._config.strict && !this._optionMap[name]) {
-          unknown.add(name)
-        }
-        value = (j + 1 < names.length) || value
-        // TODO: handle unknown
-        // TODO: handle default
-        if (this._optionMap[name].type === String) {
-          if (!value || value === true) value = ''
-        } else {
-          const nValue = +value
-          if (nValue * 0 === 0) value = nValue
-        }
-        for (const alias of this._optionMap[name].camelNames) {
-          options[alias] = value
-        }
-      }
-    }
-
-    return { args, rest, options, unknown }
+    return parseLine(source, this._argDef, this._optionMap)
   }
 
   async run (config: ParsedArgv) {
     const { meta } = config
-    if (this.children.length && !this._action) {
+    if (this._children.length && !this._action) {
       return this.context.getCommand('help', meta).run({ meta, args: [this.name] })
     }
 
@@ -361,7 +205,7 @@ export default class Command {
     if (this._config.authority > user.authority) {
       return config.meta.$send('权限不足')
     }
-    for (const option of this.options) {
+    for (const option of this._options) {
       if (option.camelNames[0] in config.options) {
         if (option.authority > user.authority) return config.meta.$send('权限不足')
         if (option.notUsage) isUsage = false
@@ -397,7 +241,7 @@ export default class Command {
       }
     }
 
-    const args = this.args.map((arg, index) => arg.variadic ? config.args.slice(index) : config.args[index])
+    const args = this._argDef.map((arg, index) => arg.variadic ? config.args.slice(index) : config.args[index])
     return this._action(config, ...args)
   }
 

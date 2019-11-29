@@ -9,7 +9,7 @@
   "author": "Shigma <1700011071@pku.edu.cn>",
   "license": "MIT",
   "scripts": {
-    "jest": "jest tests/.*\\.spec\\.ts --runInBand",
+    "jest": "jest tests/.*\\.spec\\.ts",
     "lint": "eslint src --ext .ts"
   },
   "devDependencies": {

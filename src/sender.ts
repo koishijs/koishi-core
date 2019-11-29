@@ -31,6 +31,9 @@ export default class Sender {
     this.headers = {
       Authorization: `Token ${token}`,
     }
+  }
+
+  start () {
     this.timer = setInterval(() => {
       this.messages.unshift(0)
       this.messages.splice(-1, 1)

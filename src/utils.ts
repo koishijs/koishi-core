@@ -1,8 +1,8 @@
 import { isInteger, getDateNumber, findSimilar } from 'koishi-utils'
 import { NextFunction, Middleware } from './context'
 import { UserData } from './database'
+import { Command } from './command'
 import { Meta } from './meta'
-import Command from './command'
 
 export type Activity = Record<number, Record<number, number>>
 

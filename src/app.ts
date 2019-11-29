@@ -5,8 +5,8 @@ import Database, { GroupFlag, UserFlag, UserField } from './database'
 import UserContext, { UserOptions } from './user'
 import GroupContext, { GroupOptions } from './group'
 import DiscussContext, { DiscussOptions } from './discuss'
-import Context, { Middleware, isAncestor, NextFunction } from './context'
-import Command, { showCommandLog, ShortcutConfig, ParsedArgv } from './command'
+import { Context, Middleware, isAncestor, NextFunction } from './context'
+import { Command, showCommandLog, ShortcutConfig, ParsedArgv } from './command'
 import { updateActivity, showSuggestions } from './utils'
 import { simplify } from 'koishi-utils'
 import { EventEmitter } from 'events'
@@ -96,6 +96,7 @@ export class App extends Context {
   }
 
   start () {
+    this.sender.start()
     this.server.listen(this.options.port)
   }
 

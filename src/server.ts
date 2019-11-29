@@ -111,6 +111,7 @@ export default class Server {
   }
 
   close () {
+    if (!this._httpServer) return
     this._httpServer.close()
     showServerLog('closed')
   }

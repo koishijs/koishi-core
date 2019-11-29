@@ -1,5 +1,3 @@
-import Command from './command'
-import Context from './context'
 import Database from './database'
 import GroupContext from './group'
 import Sender from './sender'
@@ -11,6 +9,7 @@ export * from './context'
 export * from './database'
 export * from './manager'
 export * from './meta'
+export * from './parser'
 export * from './utils'
 
-export { Command, Context, Database, GroupContext, UserContext, Sender }
+export { Database, GroupContext, UserContext, Sender }

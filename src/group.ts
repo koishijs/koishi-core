@@ -1,5 +1,5 @@
 import { App } from './app'
-import Context from './context'
+import { Context } from './context'
 import { EventEmitter } from 'events'
 import { Meta } from './meta'
 

@@ -1,6 +1,6 @@
+import { Command, CommandConfig, ParsedArgv } from './command'
 import { EventEmitter } from 'events'
 import { Meta } from './meta'
-import Command, { CommandConfig, ParsedArgv } from './command'
 import Sender from './sender'
 import { App } from './app'
 import Database from './database'
@@ -16,7 +16,7 @@ export function isAncestor (ancestor: string, path: string) {
 
 export const prefixTypes = ['user', 'discuss', 'group']
 
-export default class Context {
+export class Context {
   public sender: Sender
   public database: Database
   public receiver = new EventEmitter()
