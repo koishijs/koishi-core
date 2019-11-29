@@ -2,32 +2,6 @@ import { camelCase } from 'koishi-utils'
 
 const ANGLED_BRACKET_REGEXP = /<([^>]+)>/g
 const SQUARE_BRACKET_REGEXP = /\[([^\]]+)\]/g
-const HYPHEN_PLACEHOLDER = '@@__HYPHEN_PLACEHOLDER__@@'
-
-export interface OptionConfig {
-  default?: any
-  hidden?: boolean
-  authority?: number
-  notUsage?: boolean
-  isString?: boolean
-}
-
-export interface CommandOption extends OptionConfig {
-  rawName: string
-  names: string[]
-  camelNames: string[]
-  negated: boolean
-  required: boolean
-  isBoolean: boolean
-  description: string
-}
-
-export interface CommandArgument {
-  required: boolean
-  variadic: boolean
-  noSegment: boolean
-  name: string
-}
 
 export function removeBrackets (source: string) {
   return source.replace(/[<[].+/, '').trim()
@@ -50,6 +24,13 @@ function parseBracket (name: string, required: boolean): CommandArgument {
   }
 }
 
+export interface CommandArgument {
+  required: boolean
+  variadic: boolean
+  noSegment: boolean
+  name: string
+}
+
 export function parseArguments (source: string) {
   let capture: RegExpExecArray
   const result: CommandArgument[] = []
@@ -60,6 +41,24 @@ export function parseArguments (source: string) {
     result.push(parseBracket(capture[1], false))
   }
   return result
+}
+
+export interface OptionConfig {
+  default?: any
+  hidden?: boolean
+  authority?: number
+  notUsage?: boolean
+  isString?: boolean
+}
+
+export interface CommandOption extends OptionConfig {
+  rawName: string
+  names: string[]
+  camelNames: string[]
+  negated: boolean
+  required: boolean
+  isBoolean: boolean
+  description: string
 }
 
 export function parseOption (rawName: string, description: string, config: OptionConfig = {}): CommandOption {
@@ -119,15 +118,18 @@ function parseArg0 (source: string): ParsedArg0 {
 }
 
 export function parseValue (source: string | true, config: CommandOption, quoted: boolean) {
-  // TODO: handle default
-  if (config && config.isString) {
-    return source === true ? '' : source
-  } else if (source === true) {
+  // quoted empty string
+  if (source === '' && quoted) return ''
+  // no explicit parameter
+  if (source === true || source === '') {
+    if (config && config.default !== undefined) return config.default
+    if (config && config.isString) return ''
     return true
-  } else {
-    let n: number
-    return source === '' ? !quoted ? true : '' : (n = +source, n * 0 === 0) ? n : source
   }
+  // default behavior
+  if (config && config.isString) return source
+  const n = +source
+  return n * 0 === 0 ? n : source
 }
 
 export interface ParsedResult {
@@ -146,6 +148,10 @@ export function parseLine (source: string, argsConfig: CommandArgument[], optsCo
   const result: ParsedResult = { source, args, unknown, options, rest: '' }
 
   while (source) {
+    if (source[0] !== '-' && argsConfig[args.length] && argsConfig[args.length].noSegment) {
+      args.push(source)
+      break
+    }
     arg0 = parseArg0(source)
     arg = arg0.content
     source = arg0.rest
@@ -153,7 +159,7 @@ export function parseLine (source: string, argsConfig: CommandArgument[], optsCo
       args.push(arg)
       continue
     } else if (arg === '--') {
-      result.rest = source
+      result.rest = arg0.rest
       break
     }
 
@@ -183,7 +189,6 @@ export function parseLine (source: string, argsConfig: CommandArgument[], optsCo
     let quoted = false
     let param: any = arg.slice(++j)
     const lastConfig = optsConfig[names[names.length - 1]]
-    // handle -number
     if (!param && source.charCodeAt(0) !== 45 && (!lastConfig || !lastConfig.isBoolean)) {
       arg0 = parseArg0(source)
       param = arg0.content

@@ -8,20 +8,21 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-    - name: Setup Node
+    - name: Check out
+      uses: actions/checkout@v1
+    - name: Set up Node
       uses: actions/setup-node@v1
       with:
         node-version: 10.x
-    - name: npm install
+    - name: Install
       run: npm install
-    - name: tsc
+    - name: Build
       run: npx tsc -b
-    - name: lint
+    - name: Lint
       run: npm run lint
       env:
         CI: true
-    - name: jest
+    - name: Jest
       run: npm run jest
       env:
         CI: true

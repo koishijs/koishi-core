@@ -1,6 +1,6 @@
 import { createApp, App, Command, ParsedResult } from '../src'
 
-let app: App, cmd1: Command, result: ParsedResult
+let app: App, cmd1: Command, cmd2: Command, result: ParsedResult
 
 jest.setTimeout(1000)
 
@@ -14,6 +14,11 @@ beforeAll(() => {
     .command('cmd1 <foo> [bar]')
     .option('-a, --alpha')
     .option('-b, --beta <beta>')
+
+  cmd2 = app
+    .command('cmd2 [foo] [bar...]')
+    .option('-a [alpha]', '', { isString: true })
+    .option('-b [beta]', '', { default: 1000 })
 })
 
 describe('arguments', () => {
@@ -30,6 +35,18 @@ describe('arguments', () => {
   test('hyphen-prefixed arguments', () => {
     result = cmd1.parseLine('-a "-a"')
     expect(result.args).toMatchObject(['-a', ''])
+  })
+
+  test('skip rest part', () => {
+    result = cmd1.parseLine('foo bar baz -- 123 456')
+    expect(result.rest).toBe('123 456')
+    expect(result.args).toMatchObject(['foo', 'bar', 'baz'])
+  })
+
+  test('long argument', () => {
+    result = cmd2.parseLine('foo bar baz -- 123 456')
+    expect(result.rest).toBe('')
+    expect(result.args).toMatchObject(['foo', 'bar baz -- 123 456'])
   })
 })
 
@@ -54,5 +71,10 @@ describe('options', () => {
     result = cmd1.parseLine('--unknown-gamma c -de 10')
     expect(result.unknown).toMatchObject(['unknown-gamma', 'd', 'e'])
     expect(result.options).toMatchObject({ unknownGamma: 'c', d: true, e: 10 })
+  })
+
+  test('option configuration', () => {
+    result = cmd2.parseLine('-a 123 -bc 456')
+    expect(result.options).toMatchObject({ a: '123', b: 1000, c: 456 })
   })
 })
