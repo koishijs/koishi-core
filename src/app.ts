@@ -62,10 +62,17 @@ export class App extends Context {
     }
     this.server = new Server(this)
     this.sender = new Sender(this.options.sendURL, this.options.token, this.receiver)
-    const nameRE = escapeRegex(this.app.options.name)
-    this.atMeRE = new RegExp(`^\\[CQ:at,qq=${this.app.options.selfId}\\]`)
-    this.prefixRE = new RegExp(`^(\\[CQ:at,qq=${this.app.options.selfId}\\] *|@${nameRE} +|${nameRE}[,，\\s]+|\\.)`)
-    this.userPrefixRE = new RegExp(`^${nameRE}[,，\\s]+`)
+
+    // TODO: handle without selfId (standalone server)
+    const atMeRE = `\\[CQ:at,qq=${this.app.options.selfId}\\]`
+    if (this.app.options.name) {
+      const nameRE = escapeRegex(this.app.options.name)
+      this.prefixRE = new RegExp(`^(${atMeRE} *|@${nameRE} +|${nameRE}[,，\\s]+|\\.)`)
+      this.userPrefixRE = new RegExp(`^(${nameRE}[,，\\s]+|\\.)`)
+    } else {
+      this.prefixRE = new RegExp(`^(${atMeRE} *|\\.)`)
+      this.userPrefixRE = new RegExp(`^\\.`)
+    }
 
     this.receiver.on('message', meta => this._applyMiddlewares(meta))
     this.middleware((meta, next) => this._preprocess(meta, next))

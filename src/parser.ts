@@ -225,9 +225,5 @@ export function parseLine (source: string, argsDef: CommandArgument[], optsDef: 
     }
   }
 
-  // fill rest of args
-  const diff = argsDef.length - args.length
-  if (diff > 0) args.push(...new Array(diff).fill(''))
-
   return result
 }

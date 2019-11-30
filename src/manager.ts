@@ -10,7 +10,7 @@ export function addCQFolder (...folders: string[]) {
   }
 }
 
-export function createApp (options: AppOptions) {
+export function createApp (options: AppOptions = {}) {
   const app = new App(options)
   apps[options.selfId] = app
   assignees.push(options.selfId)

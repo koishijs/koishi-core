@@ -13,6 +13,7 @@ export function isAncestor (ancestor: string, path: string) {
   return path.startsWith(ancestor) || path.replace(/\d+/, '*').startsWith(ancestor)
 }
 
+export const MESSAGE_COMMAND_NOT_FOUND = '指令未找到。'
 export const prefixTypes = ['user', 'discuss', 'group']
 
 export class Context {
@@ -45,30 +46,29 @@ export class Context {
     }
   }
 
-  command (name: string, description = '', config: CommandConfig = {}) {
-    let command = this.getCommand(name)
+  command (name: string, config?: CommandConfig): Command
+  command (name: string, description: string, config?: CommandConfig): Command
+  command (name: string, ...args: [CommandConfig?] | [string, CommandConfig?]) {
+    const description = typeof args[0] === 'string' ? args.shift() as string : undefined
+    const config = { description, ...args[0] as CommandConfig }
+    let command = this.getCommand(name, this.path)
     if (command) {
-      if (description) command.description = description
-      if (config) Object.assign(command._config, config)
+      if (config) Object.assign(command.config, config)
       return command
     }
-    command = new Command(name, description, this, config)
-    let index = 0
-    for (; index < this.app._commands.length; ++index) {
-      if (command.context.path < this.path) break
-    }
-    this.app._commands.splice(index, 0, command)
-    this.app._commandMap[name] = command
+    command = new Command(name, this, config)
+    this.app._commands.push(command)
     return command
   }
 
-  getCommand (name: string, meta?: Meta) {
-    return this.app._commands.find(cmd => cmd.match(name, meta))
+  getCommand (name: string, path?: string) {
+    return this.app._commands.find(cmd => cmd.match(name, path))
   }
 
-  runCommand (name: string, parsedArgv?: ParsedArgv) {
-    const command = this.app._commands.find(cmd => cmd.match(name, parsedArgv.meta))
+  runCommand (name: string, parsedArgv: ParsedArgv) {
+    const command = this.app._commands.find(cmd => cmd.match(name, parsedArgv.meta.$path))
     if (command) return command.run(parsedArgv)
+    return parsedArgv.meta.$send(MESSAGE_COMMAND_NOT_FOUND)
   }
 
   end () {

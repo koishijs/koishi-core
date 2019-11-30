@@ -21,9 +21,15 @@ export type UserType <T> = T | ((user: UserData, meta: Meta) => T)
 
 export interface CommandConfig {
   /** disallow unknown options */
-  strict?: boolean
+  checkUnknown?: boolean
+  /** check required options */
+  checkRequired?: boolean
+  /** check argument count */
+  checkArgCount?: boolean
   /** usage identifier */
   usageName?: string
+  /** description */
+  description?: string
   authority?: number
   authorityHint?: string
   hidden?: UserType<boolean>
@@ -52,6 +58,7 @@ export interface ShortcutConfig {
 
 export class Command {
   name: string
+  config: CommandConfig
 
   _action?: (this: Command, config: ParsedArgv, ...args: any[]) => any
   _options: CommandOption[] = []
@@ -62,19 +69,18 @@ export class Command {
   _parent: Command = null
   _shortcuts: Record<string, ShortcutConfig> = {}
   _optsDef: Record<string, CommandOption> = {}
-  _config: CommandConfig
   _aliases = new Set<string>()
   _userFields = new Set<UserField>()
 
-  constructor (public rawName: string, public description: string, public context: Context, config: CommandConfig) {
+  constructor (public rawName: string, public context: Context, config: CommandConfig) {
     this.name = removeBrackets(rawName)
     this._argsDef = parseArguments(rawName)
-    this._config = { ...defaultConfig, ...config }
+    this.config = { ...defaultConfig, ...config }
     context.app._registerCommand(this.name, this)
   }
 
   get authority () {
-    return this._config.authority
+    return this.config.authority
   }
 
   userFields (fields: Iterable<UserField>) {
@@ -89,11 +95,6 @@ export class Command {
       this.context.app._registerCommand(name, this)
       this._aliases.add(name)
     }
-    return this
-  }
-
-  config (config: CommandConfig) {
-    Object.assign(this._config, config)
     return this
   }
 
@@ -156,18 +157,18 @@ export class Command {
    * Check if a command name is matched by this command
    * @param name Command name
    */
-  match (name: string, meta?: Meta) {
+  match (name: string, path?: string) {
     if (this.name !== name && !this._aliases.has(name)) return false
-    return !meta || isAncestor(this.context.path, meta.$path) && !this.getConfig('hidden', meta)
+    return !path || isAncestor(this.context.path, path)
   }
 
   getConfig <K extends keyof CommandConfig> (key: K, meta: Meta): Exclude<CommandConfig[K], (user: UserData, meta: Meta) => any> {
-    const value = this._config[key] as any
+    const value = this.config[key] as any
     return typeof value === 'function' ? value(meta.$user, meta) : value
   }
 
   updateUsage (user: UserData, time = new Date()) {
-    const name = this._config.usageName || this.name
+    const name = this.config.usageName || this.name
     if (!user.usage[name]) {
       user.usage[name] = {}
     }
@@ -187,7 +188,7 @@ export class Command {
   async run (config: ParsedArgv) {
     const { meta } = config
     if (this._children.length && !this._action) {
-      return this.context.getCommand('help', meta).run({ meta, args: [this.name] })
+      return this.context.runCommand('help', { meta, args: [this.name] })
     }
 
     let isUsage = true
@@ -202,7 +203,7 @@ export class Command {
     }
 
     // 检查使用权限
-    if (this._config.authority > user.authority) {
+    if (this.config.authority > user.authority) {
       return config.meta.$send('权限不足')
     }
     for (const option of this._options) {
@@ -224,7 +225,7 @@ export class Command {
         if (minInterval > 0) {
           const now = date.valueOf()
           if (now - usage.last <= minInterval) {
-            if (this._config.showWarning) {
+            if (this.config.showWarning) {
               await config.meta.$send('调用过于频繁，请稍后再试')
             }
             return

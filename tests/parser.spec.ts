@@ -1,14 +1,11 @@
-import { createApp, App, Command, ParsedResult } from '../src'
+import { App, Command, ParsedResult } from '../src'
 
 let app: App, cmd1: Command, cmd2: Command, result: ParsedResult
 
 jest.setTimeout(1000)
 
 beforeAll(() => {
-  app = createApp({
-    name: 'koishi',
-    selfId: 514,
-  })
+  app = new App()
 
   cmd1 = app
     .command('cmd1 <foo> [bar]')
@@ -24,19 +21,19 @@ beforeAll(() => {
 })
 
 describe('arguments', () => {
-  test('normal arguments', () => {
+  test('sufficient arguments', () => {
     result = cmd1.parseLine('foo bar 123')
     expect(result.args).toMatchObject(['foo', 'bar', '123'])
   })
 
   test('insufficient arguments', () => {
     result = cmd1.parseLine('-a')
-    expect(result.args).toMatchObject(['', ''])
+    expect(result.args).toMatchObject([])
   })
 
   test('hyphen-prefixed arguments', () => {
     result = cmd1.parseLine('-a "-a"')
-    expect(result.args).toMatchObject(['-a', ''])
+    expect(result.args).toMatchObject(['-a'])
   })
 
   test('skip rest part', () => {
@@ -55,7 +52,7 @@ describe('arguments', () => {
 describe('options', () => {
   test('option without parameter', () => {
     result = cmd1.parseLine('--alpha a')
-    expect(result.args).toMatchObject(['a', ''])
+    expect(result.args).toMatchObject(['a'])
     expect(result.options).toMatchObject({ a: true, alpha: true })
   })
 
