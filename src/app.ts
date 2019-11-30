@@ -11,6 +11,7 @@ import { updateActivity, showSuggestions } from './utils'
 import { simplify } from 'koishi-utils'
 import { EventEmitter } from 'events'
 import { Meta } from './meta'
+import * as errors from './errors'
 
 export interface AppOptions {
   port?: number
@@ -71,7 +72,7 @@ export class App extends Context {
       this.userPrefixRE = new RegExp(`^(${nameRE}[,，\\s]+|\\.)`)
     } else {
       this.prefixRE = new RegExp(`^(${atMeRE} *|\\.)`)
-      this.userPrefixRE = new RegExp(`^\\.`)
+      this.userPrefixRE = new RegExp('^\\.')
     }
 
     this.receiver.on('message', meta => this._applyMiddlewares(meta))
@@ -141,7 +142,7 @@ export class App extends Context {
           let _message = message.slice(name.length)
           if (fuzzy && !shortcut.prefix && _message.match(/^\S/)) continue
           if (oneArg) _message = `'${_message.trim()}'`
-          const { args, options: parsedOptions, rest, unknown } = command.parseLine(_message)
+          const { args, options: parsedOptions, rest, unknown } = command.parse(_message)
           const options = { ...parsedOptions, ...shortcut.options }
           fields.push(...command._userFields)
           parsedArgv = { name, meta, message, options, args, command }
@@ -222,7 +223,7 @@ export class App extends Context {
     if (!previous) {
       this._commandMap[name] = command
     } else if (previous !== command) {
-      throw new Error('duplicate command names')
+      throw new Error(errors.ERR_DUPLICATE_COMMAND)
     }
   }
 
@@ -233,7 +234,7 @@ export class App extends Context {
       // parse as command
       showCommandLog('command: %s', name)
       message = message.slice(name.length).trimStart()
-      const { options, unknown, rest, args } = command.parseLine(message)
+      const { options, unknown, rest, args } = command.parse(message)
       return { name, meta, message, options, args, command }
     }
   }
