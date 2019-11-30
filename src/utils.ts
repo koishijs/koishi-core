@@ -1,8 +1,9 @@
-import { isInteger, getDateNumber, findSimilar } from 'koishi-utils'
+import { isInteger, getDateNumber } from 'koishi-utils'
 import { NextFunction, Middleware } from './context'
 import { UserData } from './database'
 import { Command } from './command'
 import { Meta } from './meta'
+import leven from 'leven'
 
 export type Activity = Record<number, Record<number, number>>
 
@@ -71,6 +72,12 @@ interface SuggestOptions {
   postfix: string
   command: Command | ((suggestion: string) => Command)
   execute: (suggestion: string, meta: Meta) => any
+}
+
+export const SIMILARITY_COEFFICIENT = 0.4
+
+function findSimilar (target: string) {
+  return (name: string) => name.length > 2 && leven(name, target) <= name.length * SIMILARITY_COEFFICIENT
 }
 
 export function showSuggestions (options: SuggestOptions) {
