@@ -71,7 +71,7 @@ export class App extends Context {
       this.userPrefixRE = new RegExp(`^(${nameRE}[,，\\s]+|\\.)`)
     } else {
       this.prefixRE = new RegExp(`^(${atMeRE} *|\\.)`)
-      this.userPrefixRE = new RegExp(`^\\.`)
+      this.userPrefixRE = new RegExp('^\\.')
     }
 
     this.receiver.on('message', meta => this._applyMiddlewares(meta))
