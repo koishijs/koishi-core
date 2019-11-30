@@ -54,23 +54,21 @@ export class Command {
   name: string
 
   _action?: (this: Command, config: ParsedArgv, ...args: any[]) => any
-  _options: CommandOption[]
-  _argDef: CommandArgument[]
+  _options: CommandOption[] = []
+  _argsDef: CommandArgument[]
   _usage?: string
-  _examples: string[]
+  _examples: string[] = []
   _children: Command[] = []
   _parent: Command = null
   _shortcuts: Record<string, ShortcutConfig> = {}
-  _optionMap: Record<string, CommandOption> = {}
+  _optsDef: Record<string, CommandOption> = {}
   _config: CommandConfig
   _aliases = new Set<string>()
   _userFields = new Set<UserField>()
 
   constructor (public rawName: string, public description: string, public context: Context, config: CommandConfig) {
-    this._options = []
     this.name = removeBrackets(rawName)
-    this._argDef = parseArguments(rawName)
-    this._examples = []
+    this._argsDef = parseArguments(rawName)
     this._config = { ...defaultConfig, ...config }
     context.app._registerCommand(this.name, this)
   }
@@ -138,11 +136,13 @@ export class Command {
    * @param config option config
    */
   option (rawName: string, description = '', config?: OptionConfig) {
-    const option = parseOption(rawName, description, config)
+    const option = parseOption(rawName, description, config, this._optsDef)
     this._options.push(option)
     for (const name of option.names) {
-      // FIXME: no- prefix conflict
-      this._optionMap[name] = option
+      if (name in this._optsDef) {
+        throw new Error('duplicate option names')
+      }
+      this._optsDef[name] = option
     }
     return this
   }
@@ -181,7 +181,7 @@ export class Command {
   }
 
   parseLine (source: string) {
-    return parseLine(source, this._argDef, this._optionMap)
+    return parseLine(source, this._argsDef, this._optsDef)
   }
 
   async run (config: ParsedArgv) {
@@ -241,7 +241,7 @@ export class Command {
       }
     }
 
-    const args = this._argDef.map((arg, index) => arg.variadic ? config.args.slice(index) : config.args[index])
+    const args = this._argsDef.map((arg, index) => arg.variadic ? config.args.slice(index) : config.args[index])
     return this._action(config, ...args)
   }
 

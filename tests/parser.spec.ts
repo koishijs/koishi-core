@@ -85,3 +85,20 @@ describe('options', () => {
     expect(result.options).toMatchObject({ a: '123', b: 1000, d: 456 })
   })
 })
+
+describe('edge cases', () => {
+  let cmd3: Command
+
+  beforeAll(() => {
+    cmd3 = app
+      .command('cmd3')
+      .option('-a, --alpha-beta')
+      .option('-b, --no-alpha-beta')
+      .option('-c, --no-gamma', '', { noNegated: true })
+  })
+
+  test('no negated options', () => {
+    result = cmd3.parseLine('-abc')
+    expect(result.options).toMatchObject({ a: true, alphaBeta: true, b: true, noAlphaBeta: true, c: true, noGamma: true })
+  })
+})

@@ -49,6 +49,7 @@ export interface OptionConfig {
   authority?: number
   notUsage?: boolean
   isString?: boolean
+  noNegated?: boolean
 }
 
 export interface CommandOption extends OptionConfig {
@@ -61,7 +62,7 @@ export interface CommandOption extends OptionConfig {
   description: string
 }
 
-export function parseOption (rawName: string, description: string, config: OptionConfig = {}): CommandOption {
+export function parseOption (rawName: string, description: string, config: OptionConfig = {}, optsDef: Record<string, CommandOption>): CommandOption {
   config = { authority: 0, ...config }
 
   const negated: string[] = []
@@ -69,7 +70,7 @@ export function parseOption (rawName: string, description: string, config: Optio
   let required = false, isBoolean = false
   const names = removeBrackets(rawName).split(',').map((name: string) => {
     name = name.trim().replace(/^-{1,2}/, '')
-    if (name.startsWith('no-')) {
+    if (name.startsWith('no-') && !config.noNegated && !optsDef[name.slice(3)]) {
       name = name.slice(3)
       const camel = camelCase(name)
       negated.push(camel)
@@ -142,7 +143,7 @@ export interface ParsedResult {
   options: Record<string, any>
 }
 
-export function parseLine (source: string, argsConfig: CommandArgument[], optsConfig: Record<string, CommandOption>) {
+export function parseLine (source: string, argsDef: CommandArgument[], optsDef: Record<string, CommandOption>) {
   let arg: string, name: string, arg0: ParsedArg0
   const args: string[] = []
   const unknown: string[] = []
@@ -150,7 +151,7 @@ export function parseLine (source: string, argsConfig: CommandArgument[], optsCo
   const result: ParsedResult = { source, args, unknown, options, rest: '' }
 
   function handleOption (name: string, knownValue: any, unknownValue: any) {
-    const config = optsConfig[name]
+    const config = optsDef[name]
     if (config) {
       for (const alias of config.camels) {
         options[alias] = !config.negated.includes(alias) && knownValue
@@ -166,7 +167,7 @@ export function parseLine (source: string, argsConfig: CommandArgument[], optsCo
 
   while (source) {
     // long argument
-    if (source[0] !== '-' && argsConfig[args.length] && argsConfig[args.length].noSegment) {
+    if (source[0] !== '-' && argsDef[args.length] && argsDef[args.length].noSegment) {
       args.push(source)
       break
     }
@@ -207,7 +208,7 @@ export function parseLine (source: string, argsConfig: CommandArgument[], optsCo
     // get parameter
     let quoted = false
     let param: any = arg.slice(++j)
-    const lastConfig = optsConfig[names[names.length - 1]]
+    const lastConfig = optsDef[names[names.length - 1]]
     if (!param && source.charCodeAt(0) !== 45 && (!lastConfig || !lastConfig.isBoolean)) {
       arg0 = parseArg0(source)
       param = arg0.content
@@ -218,14 +219,14 @@ export function parseLine (source: string, argsConfig: CommandArgument[], optsCo
     // handle each name
     for (j = 0; j < names.length; j++) {
       name = names[j]
-      const config = optsConfig[name]
+      const config = optsDef[name]
       const value = parseValue((j + 1 < names.length) || param, quoted, config)
       handleOption(name, value, value)
     }
   }
 
   // fill rest of args
-  const diff = argsConfig.length - args.length
+  const diff = argsDef.length - args.length
   if (diff > 0) args.push(...new Array(diff).fill(''))
 
   return result
