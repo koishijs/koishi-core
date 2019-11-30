@@ -7,7 +7,6 @@ import { Database } from './database'
 
 export type NextFunction = (next?: NextFunction) => void | Promise<void>
 export type Middleware = (meta: Meta, next: NextFunction) => void | Promise<void>
-
 export type Plugin <T extends Context, U = {}> = ((ctx: T, options: U) => void) | { apply (ctx: T, options: U): void }
 
 export function isAncestor (ancestor: string, path: string) {

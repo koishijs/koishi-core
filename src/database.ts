@@ -23,7 +23,7 @@ export interface UserData {
   talkativeness: Activity
 }
 
-export type User = Observed<UserData>
+export type User<K extends UserField = UserField> = Observed<Pick<UserData, K>>
 export type UserField = keyof UserData
 export const userFields: UserField[] = []
 
@@ -95,7 +95,7 @@ export interface Database extends Subdatabases {
   getUsers <K extends UserField> (ids: number[], keys?: UserField[]): Promise<Pick<UserData, K>[]>
   getAllUsers <K extends UserField> (keys?: K[]): Promise<Pick<UserData, K>[]>
   setUser (userId: number, data: Partial<UserData>): Promise<any>
-  observeUser <K extends UserField> (user: number | UserData, defaultAuthority?: number, keys?: K[]): Promise<Observed<Pick<UserData, K>>>
+  observeUser <K extends UserField> (user: number | UserData, defaultAuthority?: number, keys?: K[]): Promise<User<K>>
 
   // group methods
   getGroup <K extends GroupField> (groupId: number, selfId?: number, keys?: K[]): Promise<Pick<GroupData, K>>

@@ -6,6 +6,8 @@ import { Meta } from './meta'
 export interface DiscussOptions {}
 
 export class DiscussContext extends Context {
+  receiver: DiscussReceiver
+
   constructor (public id: number, public options: DiscussOptions, app: App) {
     super(`/discuss/${id}/`, app)
   }

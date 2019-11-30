@@ -6,6 +6,8 @@ import { Meta } from './meta'
 export interface UserOptions {}
 
 export class UserContext extends Context {
+  receiver: UserReceiver
+
   constructor (public id: number, public options: UserOptions, app: App) {
     super(`/user/${id}/`, app)
   }
@@ -13,7 +15,7 @@ export class UserContext extends Context {
 
 export type UserEvent = 'message' | 'message/friend' | 'message/group' | 'message/discuss' | 'message/other'
 
-export interface GroupReceiver extends EventEmitter {
+export interface UserReceiver extends EventEmitter {
   on (event: UserEvent, listener: (meta: Meta) => any): this
   once (event: UserEvent, listener: (meta: Meta) => any): this
 }
