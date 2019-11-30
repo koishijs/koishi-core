@@ -6,7 +6,7 @@ import { GroupContext, GroupOptions } from './group'
 import { DiscussContext, DiscussOptions } from './discuss'
 import { Context, Middleware, isAncestor, NextFunction } from './context'
 import { Command, showCommandLog, ShortcutConfig, ParsedArgv } from './command'
-import { Database, GroupFlag, UserFlag, UserField, createDatabase } from './database'
+import { Database, GroupFlag, UserFlag, UserField, createDatabase, DatabaseConfig } from './database'
 import { updateActivity, showSuggestions } from './utils'
 import { simplify } from 'koishi-utils'
 import { EventEmitter } from 'events'
@@ -20,10 +20,9 @@ export interface AppOptions {
   sendURL?: string
   selfId?: number
   wsServer?: string
-  operators?: number[]
-  database?: {}
+  database?: DatabaseConfig
   shareConnection?: boolean
-  imageServerKey?: string,
+  imageServerKey?: string
 }
 
 const defaultOptions: AppOptions = {

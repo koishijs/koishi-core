@@ -8,8 +8,8 @@ import { camelCase } from 'koishi-utils'
 import { Meta } from './meta'
 import { App } from './app'
 
-export const showServerLog = debug('koishi:server')
-export const showReceiverLog = debug('koishi:receiver')
+const showServerLog = debug('koishi:server')
+const showReceiverLog = debug('koishi:receiver')
 
 // @ts-ignore: @types/debug does not include the property
 showServerLog.inspectOpts.depth = 0

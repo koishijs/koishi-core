@@ -1,22 +1,16 @@
 import debug from 'debug'
 import axios from 'axios'
+import { EventEmitter } from 'events'
 import { snakeCase, camelCase } from 'koishi-utils'
 import { GroupMemberInfo, Status, VersionInfo, Meta, FriendInfo, GroupInfo, Credentials } from './meta'
-import { EventEmitter } from 'events'
-import { inspect } from 'util'
 
 const showSenderLog = debug('app:sender')
 
 export class SenderError extends Error {
   readonly name = 'SenderError'
 
-  constructor (readonly args: { [x: string]: any }, readonly url: string, readonly retcode: number) {
-    super(`Error when trying to send to ${url}, retcode: ${retcode}, args: ${JSON.stringify(args)}`)
-    this.stack = [
-      `${this.name}: Error when trying to send to ${this.url}`,
-      `Args: ${inspect(this.args, { colors: true })}`,
-      `Code: ${this.retcode}`,
-    ].join('\n')
+  constructor (readonly args: Record<string, any>, readonly url: string, readonly retcode: number) {
+    super(`Error when trying to send to ${url}, args: ${JSON.stringify(args)}, retcode: ${retcode}`)
   }
 }
 
