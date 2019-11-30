@@ -5,7 +5,7 @@ import { Meta } from './meta'
 
 export interface DiscussOptions {}
 
-export default class DiscussContext extends Context {
+export class DiscussContext extends Context {
   constructor (public id: number, public options: DiscussOptions, app: App) {
     super(`/discuss/${id}/`, app)
   }

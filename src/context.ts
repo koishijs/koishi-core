@@ -1,9 +1,9 @@
 import { Command, CommandConfig, ParsedArgv } from './command'
 import { EventEmitter } from 'events'
 import { Meta } from './meta'
-import Sender from './sender'
+import { Sender } from './sender'
 import { App } from './app'
-import Database from './database'
+import { Database } from './database'
 
 export type NextFunction = (next?: NextFunction) => void | Promise<void>
 export type Middleware = (meta: Meta, next: NextFunction) => void | Promise<void>

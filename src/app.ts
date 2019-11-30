@@ -1,16 +1,15 @@
-import Server from './server'
-import Sender from './sender'
 import escapeRegex from 'escape-string-regexp'
-import Database, { GroupFlag, UserFlag, UserField } from './database'
-import UserContext, { UserOptions } from './user'
-import GroupContext, { GroupOptions } from './group'
-import DiscussContext, { DiscussOptions } from './discuss'
+import { Server } from './server'
+import { Sender } from './sender'
+import { UserContext, UserOptions } from './user'
+import { GroupContext, GroupOptions } from './group'
+import { DiscussContext, DiscussOptions } from './discuss'
 import { Context, Middleware, isAncestor, NextFunction } from './context'
 import { Command, showCommandLog, ShortcutConfig, ParsedArgv } from './command'
+import { Database, GroupFlag, UserFlag, UserField, createDatabase } from './database'
 import { updateActivity, showSuggestions } from './utils'
 import { simplify } from 'koishi-utils'
 import { EventEmitter } from 'events'
-import { PoolConfig } from 'mysql'
 import { Meta } from './meta'
 
 export interface AppOptions {
@@ -22,7 +21,7 @@ export interface AppOptions {
   selfId?: number
   wsServer?: string
   operators?: number[]
-  database?: PoolConfig
+  database?: {}
   shareConnection?: boolean
   imageServerKey?: string,
 }
@@ -60,7 +59,7 @@ export class App extends Context {
     if (database && options.shareConnection) {
       this.database = database
     } else if (options.database) {
-      database = this.database = new Database(options.database)
+      database = this.database = createDatabase(options.database)
     }
     this.server = new Server(this)
     this.sender = new Sender(this.options.sendURL, this.options.token, this.receiver)

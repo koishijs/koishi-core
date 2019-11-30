@@ -14,7 +14,7 @@ export const showReceiverLog = debug('koishi:receiver')
 // @ts-ignore: @types/debug does not include the property
 showServerLog.inspectOpts.depth = 0
 
-export default class Server {
+export class Server {
   private _server = express().use(json())
   private _socket: WebSocket
   private _httpServer: HttpServer

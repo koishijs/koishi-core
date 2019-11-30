@@ -11,7 +11,7 @@ const defaultGroupOptions: GroupOptions = {
   authority: 1,
 }
 
-export default class GroupContext extends Context {
+export class GroupContext extends Context {
   public receiver: GroupReceiver
   public options: GroupOptions
 

@@ -22,7 +22,7 @@ export class SenderError extends Error {
 
 export type RecordFormat = 'mp3' | 'amr' | 'wma' | 'm4a' | 'spx' | 'ogg' | 'wav' | 'flac'
 
-export default class Sender {
+export class Sender {
   messages = new Array(61).fill(0)
   timer: NodeJS.Timeout
   headers: Record<string, any>

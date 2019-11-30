@@ -5,7 +5,7 @@ import { Meta } from './meta'
 
 export interface UserOptions {}
 
-export default class UserContext extends Context {
+export class UserContext extends Context {
   constructor (public id: number, public options: UserOptions, app: App) {
     super(`/user/${id}/`, app)
   }
