@@ -38,8 +38,9 @@ export function getSenderName (meta: Meta) {
   return meta.messageType !== 'private' ? `[CQ:at,qq=${meta.userId}]` : meta.sender.card || meta.sender.nickname
 }
 
-export function getUserName (user: UserData) {
-  return user.name === String(user.id) ? String(user.id) : user.name
+export function getUserName (user: Pick<UserData, 'id' | 'name'>) {
+  const idString = '' + user.id
+  return user.name === idString ? idString : user.name
 }
 
 export function getContextId (meta: Meta) {
