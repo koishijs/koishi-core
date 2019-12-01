@@ -79,7 +79,6 @@ export class Command {
   _examples: string[] = []
   _shortcuts: Record<string, ShortcutConfig> = {}
   _optsDef: Record<string, CommandOption> = {}
-  _aliases = new Set<string>()
   _userFields = new Set<UserField>()
 
   constructor (public rawName: string, public context: Context, config: CommandConfig = {}) {
@@ -92,6 +91,7 @@ export class Command {
     this._argsDef = parseArguments(rawName)
     this.config = { ...defaultConfig, ...config }
     this._registerAlias(this.name)
+    this.option('-h, --help', messages.SHOW_THIS_MESSAGE)
     context.app._commands.push(this)
   }
 
@@ -114,7 +114,6 @@ export class Command {
   alias (...names: string[]) {
     for (const name of names) {
       this._registerAlias(name)
-      this._aliases.add(name)
     }
     return this
   }
@@ -171,18 +170,9 @@ export class Command {
     return this
   }
 
-  action (callback: (this: this, options: ParsedCommandLine, ...args: any[]) => any) {
+  action (callback: (this: this, options: ParsedCommandLine, ...args: string[]) => any) {
     this._action = callback
     return this
-  }
-
-  /**
-   * Check if a command name is matched by this command
-   * @param name Command name
-   */
-  match (name: string, path?: string) {
-    if (this.name !== name && !this._aliases.has(name)) return false
-    return !path || isAncestor(this.context.path, path)
   }
 
   getConfig <K extends keyof CommandConfig> (key: K, meta: Meta): Exclude<CommandConfig[K], (user: UserData, meta: Meta) => any> {
@@ -212,8 +202,8 @@ export class Command {
     const { meta, options, args, unknown } = config
     config.next = next
 
-    // check action presence
-    if (this.children.length && !this._action) {
+    // show help when use `-h, --help` or when there is no action
+    if (!this._action || options.help) {
       return this.context.runCommand('help', meta, [this.name])
     }
 

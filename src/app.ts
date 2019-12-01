@@ -39,7 +39,6 @@ export class App extends Context {
   options: AppOptions
   database: Database
   receiver: AppReceiver
-  atMeRE: RegExp
   prefixRE: RegExp
   userPrefixRE: RegExp
   _commands: Command[] = []
@@ -47,10 +46,10 @@ export class App extends Context {
   _shortcuts: ShortcutConfig[] = []
   _shortcutMap: Record<string, Command> = {}
   _middlewares: [string, Middleware][] = []
-  contexts: Record<string, Context> = { '/': this }
-  users = this._context('/user/')
-  groups = this._context('/group/')
-  discusses = this._context('/discuss/')
+  _contexts: Record<string, Context> = { '/': this }
+  users = this._createContext('/user/')
+  groups = this._createContext('/group/')
+  discusses = this._createContext('/discuss/')
 
   constructor (options: AppOptions = {}) {
     super('/')
@@ -78,26 +77,26 @@ export class App extends Context {
     this.middleware((meta, next) => this._preprocess(meta, next))
   }
 
-  private _context <T extends Context> (path: string, create: () => T = () => new Context(path) as T) {
-    if (!this.contexts[path]) {
-      const ctx = this.contexts[path] = create()
+  private _createContext <T extends Context> (path: string, create: () => T = () => new Context(path) as T) {
+    if (!this._contexts[path]) {
+      const ctx = this._contexts[path] = create()
       ctx.database = this.database
       ctx.sender = this.sender
       ctx.app = this
     }
-    return this.contexts[path] as T
+    return this._contexts[path] as T
   }
 
   discuss (id: number, options: DiscussOptions = {}) {
-    return this._context(`/discuss/${id}/`, () => new DiscussContext(id, options, this))
+    return this._createContext(`/discuss/${id}/`, () => new DiscussContext(id, options, this))
   }
 
   group (id: number, options: GroupOptions = {}) {
-    return this._context(`/group/${id}/`, () => new GroupContext(id, options, this))
+    return this._createContext(`/group/${id}/`, () => new GroupContext(id, options, this))
   }
 
   user (id: number, options: UserOptions = {}) {
-    return this._context(`/user/${id}/`, () => new UserContext(id, options, this))
+    return this._createContext(`/user/${id}/`, () => new UserContext(id, options, this))
   }
 
   start () {

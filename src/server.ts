@@ -79,8 +79,8 @@ export class Server {
   }
 
   emitEvents (meta: Meta, app: App) {
-    for (const path in app.contexts) {
-      const context = app.contexts[path]
+    for (const path in app._contexts) {
+      const context = app._contexts[path]
       const types = context._getEventTypes(meta.$path)
       if (types.length) showReceiverLog(path, 'emits', types.join(', '))
       types.forEach(type => context.receiver.emit(type, meta))
