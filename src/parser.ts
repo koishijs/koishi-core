@@ -225,5 +225,12 @@ export function parseLine (source: string, argsDef: CommandArgument[], optsDef: 
     }
   }
 
+  // assign default values
+  for (const name in optsDef) {
+    if (optsDef[name].default !== undefined && !(name in options)) {
+      options[name] = optsDef[name].default
+    }
+  }
+
   return result
 }

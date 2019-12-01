@@ -11,7 +11,7 @@
   "scripts": {
     "jest": "jest tests/.*\\.spec\\.ts",
     "lint": "eslint src --ext .ts",
-    "prepublish": "tsc -b"
+    "prepack": "tsc -b"
   },
   "devDependencies": {
     "@types/body-parser": "^1.17.1",

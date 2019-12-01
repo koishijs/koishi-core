@@ -78,7 +78,7 @@ describe('options', () => {
   })
 
   test('option configuration', () => {
-    result = cmd2.parse('-a 123 -bd 456')
+    result = cmd2.parse('-a 123 -d 456')
     expect(result.options).toMatchObject({ a: '123', b: 1000, d: 456 })
   })
 })
