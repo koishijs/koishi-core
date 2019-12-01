@@ -1,5 +1,5 @@
 import { Context, isAncestor, NextFunction } from './context'
-import { UserData, UserField } from './database'
+import { UserData, UserField, User } from './database'
 import { noop } from 'koishi-utils'
 import { Meta } from './meta'
 import { format } from 'util'
@@ -234,8 +234,16 @@ export class Command {
       }
     }
 
-    let isUsage = true
+    if (this._checkUser(meta, options)) {
+      return this._action(config, ...args)
+    }
+  }
+
+  /** check authority and usage */
+  private async _checkUser (meta: Meta, options: Record<string, any>) {
     const user = meta.$user
+    if (!user) return true
+    let isUsage = true
 
     // check authority
     if (this.config.authority > user.authority) {
@@ -277,7 +285,7 @@ export class Command {
       }
     }
 
-    return this._action(config, ...args)
+    return true
   }
 
   end () {

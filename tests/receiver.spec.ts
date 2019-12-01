@@ -1,4 +1,4 @@
-import { SERVER_PORT, CLIENT_PORT, createServer, post } from './utils'
+import { SERVER_URL, CLIENT_PORT, createServer, postMeta } from './utils'
 import { createApp, App } from '../src'
 import { Server } from 'http'
 
@@ -8,12 +8,11 @@ let server: Server
 jest.setTimeout(1000)
 
 beforeAll(() => {
-  server = createServer(SERVER_PORT)
+  server = createServer()
 
   app = createApp({
     port: CLIENT_PORT,
-    name: 'koishi',
-    sendURL: `http://localhost:${SERVER_PORT}`,
+    sendURL: SERVER_URL,
     selfId: 514,
   })
 
@@ -46,7 +45,7 @@ describe('receiver', () => {
   })
 
   test('friend', async () => {
-    await post({
+    await postMeta({
       postType: 'message',
       userId: 10000,
       selfId: 514,
@@ -62,7 +61,7 @@ describe('receiver', () => {
   })
 
   test('group', async () => {
-    await post({
+    await postMeta({
       postType: 'message',
       groupId: 10000,
       selfId: 514,

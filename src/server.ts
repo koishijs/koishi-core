@@ -18,10 +18,11 @@ showServerLog.inspectOpts.depth = 0
 const serverMap: Record<number, Server> = {}
 
 export function createServer (app: App) {
-  if (app.options.port in serverMap) {
-    return serverMap[app.options.port].bind(app)
+  const { port } = app.options
+  if (port in serverMap) {
+    return serverMap[port].bind(app)
   }
-  return new Server(app)
+  return serverMap[port] = new Server(app)
 }
 
 export class Server {
@@ -29,6 +30,7 @@ export class Server {
   private _server = express().use(json())
   private _socket: WebSocket
   private _httpServer: HttpServer
+  private _isListening = false
 
   constructor (app: App) {
     if (app.options.wsServer) {
@@ -56,11 +58,10 @@ export class Server {
 
     this._server.use(async (req, res) => {
       const meta = camelCase(req.body) as Meta
-      showServerLog('receive %o', meta)
-      res.sendStatus(200)
-
       const app = this._apps.find(app => app.options.selfId === meta.selfId)
-      if (!app) throw new Error(errors.NO_CORRESPONDING_APP)
+      if (!app) return res.sendStatus(403)
+      res.sendStatus(200)
+      showServerLog('receive %o', meta)
 
       try {
         await this.addProperties(meta, app)
@@ -123,6 +124,8 @@ export class Server {
   }
 
   listen (port: number) {
+    if (this._isListening) return
+    this._isListening = true
     this._httpServer = this._server.listen(port)
     showServerLog('listen to port', port)
     for (const app of this._apps) {

@@ -29,7 +29,7 @@ export function onStart (hook: (...app: App[]) => void) {
   onStartHooks.add(hook)
 }
 
-export function start () {
+export function startAll () {
   const appList: App[] = []
   for (const id in apps) {
     apps[id].start()
@@ -37,5 +37,11 @@ export function start () {
   }
   for (const hook of onStartHooks) {
     hook(...appList)
+  }
+}
+
+export function closeAll () {
+  for (const id in apps) {
+    apps[id].close()
   }
 }
