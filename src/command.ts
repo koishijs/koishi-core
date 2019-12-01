@@ -2,6 +2,7 @@ import { CommandOption, CommandArgument, OptionConfig, removeBrackets, parseArgu
 import { Context, isAncestor, NextFunction } from './context'
 import { UserData, UserField } from './database'
 import { Meta } from './meta'
+import * as errors from './errors'
 import debug from 'debug'
 
 export const showCommandLog = debug('app:command')
@@ -59,24 +60,30 @@ export interface ShortcutConfig {
 export class Command {
   name: string
   config: CommandConfig
+  children: Command[] = []
+  parent: Command = null
 
   _action?: (this: Command, config: ParsedArgv, ...args: any[]) => any
   _options: CommandOption[] = []
   _argsDef: CommandArgument[]
   _usage?: string
   _examples: string[] = []
-  _children: Command[] = []
-  _parent: Command = null
   _shortcuts: Record<string, ShortcutConfig> = {}
   _optsDef: Record<string, CommandOption> = {}
   _aliases = new Set<string>()
   _userFields = new Set<UserField>()
 
-  constructor (public rawName: string, public context: Context, config: CommandConfig) {
+  constructor (public rawName: string, public context: Context, config: CommandConfig = {}) {
     this.name = removeBrackets(rawName)
+    if (!this.name) {
+      throw new Error(errors.ERR_EXPECT_COMMAND_NAME)
+    } else if (!/^[\w.-]+$/.exec(this.name)) {
+      throw new Error(errors.ERR_INVALID_CHARACTER)
+    }
     this._argsDef = parseArguments(rawName)
     this.config = { ...defaultConfig, ...config }
     context.app._registerCommand(this.name, this)
+    context.app._commands.push(this)
   }
 
   get authority () {
@@ -99,12 +106,14 @@ export class Command {
   }
 
   subcommand (name: string, description = '', config: CommandConfig = {}) {
-    if (name.startsWith('.')) name = this.name + name
-    const command = this.context.command(name, description, config)
-    if (!command._parent) {
-      command._parent = this
-      this._children.push(command)
+    const dotPrefixed = name.startsWith('.')
+    if (dotPrefixed) name = this.name + name
+    const [firstName] = name.split(/(?=[\s/])/, 1)
+    if (this.context.app._commandMap[firstName]) {
+      throw new Error(errors.ERR_EXISTING_SUBCOMMAND)
     }
+    if (!dotPrefixed) name = this.name + '/' + name
+    const command = this.context.command(name, description, config)
     return command
   }
 
@@ -141,7 +150,7 @@ export class Command {
     this._options.push(option)
     for (const name of option.names) {
       if (name in this._optsDef) {
-        throw new Error('duplicate option names')
+        throw new Error(errors.ERR_DUPLICATE_OPTION)
       }
       this._optsDef[name] = option
     }
@@ -181,13 +190,13 @@ export class Command {
     return usage
   }
 
-  parseLine (source: string) {
+  parse (source: string) {
     return parseLine(source, this._argsDef, this._optsDef)
   }
 
   async run (config: ParsedArgv) {
     const { meta } = config
-    if (this._children.length && !this._action) {
+    if (this.children.length && !this._action) {
       return this.context.runCommand('help', { meta, args: [this.name] })
     }
 

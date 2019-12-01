@@ -4,6 +4,7 @@ import { Meta } from './meta'
 import { Sender } from './sender'
 import { App } from './app'
 import { Database } from './database'
+import * as errors from './errors'
 
 export type NextFunction = (next?: NextFunction) => void | Promise<void>
 export type Middleware = (meta: Meta, next: NextFunction) => void | Promise<void>
@@ -46,22 +47,56 @@ export class Context {
     }
   }
 
-  command (name: string, config?: CommandConfig): Command
-  command (name: string, description: string, config?: CommandConfig): Command
-  command (name: string, ...args: [CommandConfig?] | [string, CommandConfig?]) {
-    const description = typeof args[0] === 'string' ? args.shift() as string : undefined
-    const config = { description, ...args[0] as CommandConfig }
-    let command = this.getCommand(name, this.path)
+  private _getChildCommand (name: string, parent?: Command) {
+    let command = this.app._commandMap[name]
     if (command) {
-      if (config) Object.assign(command.config, config)
+      if (parent && command.parent !== parent) {
+        throw new Error(errors.ERR_WRONG_SUBCOMMAND)
+      }
+      if (!isAncestor(command.context.path, this.path)) {
+        throw new Error(errors.ERR_WRONG_CONTEXT)
+      }
       return command
     }
-    command = new Command(name, this, config)
-    this.app._commands.push(command)
+    if (parent && !isAncestor(parent.context.path, this.path)) {
+      throw new Error(errors.ERR_WRONG_CONTEXT)
+    }
+    command = new Command(name, this)
+    if (parent) {
+      command.parent = parent
+      parent.children.push(command)
+    }
     return command
   }
 
-  getCommand (name: string, path?: string) {
+  command (rawName: string, config?: CommandConfig): Command
+  command (rawName: string, description: string, config?: CommandConfig): Command
+  command (rawName: string, ...args: [CommandConfig?] | [string, CommandConfig?]) {
+    const description = typeof args[0] === 'string' ? args.shift() as string : undefined
+    const config = { description, ...args[0] as CommandConfig }
+
+    const [name] = rawName.split(/\s/, 1)
+    const declaration = rawName.slice(name.length)
+    const segments = name.split(/(?=[\\./])/)
+    let command: Command
+    segments.forEach((name, index) => {
+      if (index === segments.length - 1) name += declaration
+      if (!index) return command = this._getChildCommand(name)
+      if (name.charCodeAt(0) === 46) {
+        command = this._getChildCommand(command.name + name, command)
+      } else {
+        command = this._getChildCommand(name.slice(1), command)
+      }
+    })
+
+    Object.assign(command.config, config)
+    return command
+  }
+
+  getCommand (name: string, meta?: Meta) {
+    name = name.split(' ', 1)[0]
+    const path = meta ? meta.$path : this.path
+    // TODO: use _commandMap
     return this.app._commands.find(cmd => cmd.match(name, path))
   }
 

@@ -1,3 +1,7 @@
+import * as errors from './errors'
+
+export { errors }
+
 export * from './app'
 export * from './command'
 export * from './context'

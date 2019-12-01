@@ -22,28 +22,28 @@ beforeAll(() => {
 
 describe('arguments', () => {
   test('sufficient arguments', () => {
-    result = cmd1.parseLine('foo bar 123')
+    result = cmd1.parse('foo bar 123')
     expect(result.args).toMatchObject(['foo', 'bar', '123'])
   })
 
   test('insufficient arguments', () => {
-    result = cmd1.parseLine('-a')
+    result = cmd1.parse('-a')
     expect(result.args).toMatchObject([])
   })
 
   test('hyphen-prefixed arguments', () => {
-    result = cmd1.parseLine('-a "-a"')
+    result = cmd1.parse('-a "-a"')
     expect(result.args).toMatchObject(['-a'])
   })
 
   test('skip rest part', () => {
-    result = cmd1.parseLine('foo bar baz -- 123 456')
+    result = cmd1.parse('foo bar baz -- 123 456')
     expect(result.rest).toBe('123 456')
     expect(result.args).toMatchObject(['foo', 'bar', 'baz'])
   })
 
   test('long argument', () => {
-    result = cmd2.parseLine('foo bar baz -- 123 456')
+    result = cmd2.parse('foo bar baz -- 123 456')
     expect(result.rest).toBe('')
     expect(result.args).toMatchObject(['foo', 'bar baz -- 123 456'])
   })
@@ -51,34 +51,34 @@ describe('arguments', () => {
 
 describe('options', () => {
   test('option without parameter', () => {
-    result = cmd1.parseLine('--alpha a')
+    result = cmd1.parse('--alpha a')
     expect(result.args).toMatchObject(['a'])
     expect(result.options).toMatchObject({ a: true, alpha: true })
   })
 
   test('option with parameter', () => {
-    result = cmd1.parseLine('--beta 10')
+    result = cmd1.parse('--beta 10')
     expect(result.options).toMatchObject({ b: 10, beta: 10 })
   })
 
   test('quoted parameter', () => {
-    result = cmd1.parseLine('-c "" -d')
+    result = cmd1.parse('-c "" -d')
     expect(result.options).toMatchObject({ c: '', d: true })
   })
 
   test('unknown options', () => {
-    result = cmd1.parseLine('--unknown-gamma c -de 10')
+    result = cmd1.parse('--unknown-gamma c -de 10')
     expect(result.unknown).toMatchObject(['unknown-gamma', 'd', 'e'])
     expect(result.options).toMatchObject({ unknownGamma: 'c', d: true, e: 10 })
   })
 
   test('negated options', () => {
-    result = cmd2.parseLine('-C --no-delta -E --no-epsilon')
+    result = cmd2.parse('-C --no-delta -E --no-epsilon')
     expect(result.options).toMatchObject({ C: true, gamma: false, D: true, delta: false, E: true, epsilon: false })
   })
 
   test('option configuration', () => {
-    result = cmd2.parseLine('-a 123 -bd 456')
+    result = cmd2.parse('-a 123 -bd 456')
     expect(result.options).toMatchObject({ a: '123', b: 1000, d: 456 })
   })
 })
@@ -95,7 +95,7 @@ describe('edge cases', () => {
   })
 
   test('no negated options', () => {
-    result = cmd3.parseLine('-abc')
+    result = cmd3.parse('-abc')
     expect(result.options).toMatchObject({ a: true, alphaBeta: true, b: true, noAlphaBeta: true, c: true, noGamma: true })
   })
 })

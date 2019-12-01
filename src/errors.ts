@@ -1,0 +1,7 @@
+export const ERR_DUPLICATE_COMMAND = 'duplicate command names'
+export const ERR_DUPLICATE_OPTION = 'duplicate option names'
+export const ERR_EXISTING_SUBCOMMAND = 'cannot set existing command as subcommand'
+export const ERR_EXPECT_COMMAND_NAME = 'expect a command name'
+export const ERR_INVALID_CHARACTER = 'invalid characters'
+export const ERR_WRONG_CONTEXT = 'invalid context path'
+export const ERR_WRONG_SUBCOMMAND = 'invalid subcommand'
