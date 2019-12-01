@@ -96,6 +96,7 @@ export interface Database extends Subdatabases {
   getAllUsers <K extends UserField> (keys?: K[]): Promise<Pick<UserData, K>[]>
   setUser (userId: number, data: Partial<UserData>): Promise<any>
   observeUser <K extends UserField> (user: number | UserData, defaultAuthority?: number, keys?: K[]): Promise<User<K>>
+  getUserCount (): Promise<number>
 
   // group methods
   getGroup <K extends GroupField> (groupId: number, selfId?: number, keys?: K[]): Promise<Pick<GroupData, K>>
