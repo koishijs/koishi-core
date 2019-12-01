@@ -1,6 +1,7 @@
 import WebSocket from 'ws'
 import express from 'express'
 import debug from 'debug'
+import * as errors from './errors'
 import { Server as HttpServer } from 'http'
 import { json } from 'body-parser'
 import { createHmac } from 'crypto'
@@ -14,16 +15,26 @@ const showReceiverLog = debug('koishi:receiver')
 // @ts-ignore: @types/debug does not include the property
 showServerLog.inspectOpts.depth = 0
 
+const serverMap: Record<number, Server> = {}
+
+export function createServer (app: App) {
+  if (app.options.port in serverMap) {
+    return serverMap[app.options.port].bind(app)
+  }
+  return new Server(app)
+}
+
 export class Server {
+  private _apps: App[] = []
   private _server = express().use(json())
   private _socket: WebSocket
   private _httpServer: HttpServer
 
-  constructor (public app: App) {
+  constructor (app: App) {
     if (app.options.wsServer) {
       this._socket = new WebSocket(app.options.wsServer + '/event', {
         headers: {
-          Authorization: `Token ${this.app.options.token}`,
+          Authorization: `Token ${app.options.token}`,
         },
       })
 
@@ -48,25 +59,35 @@ export class Server {
       showServerLog('receive %o', meta)
       res.sendStatus(200)
 
+      const app = this._apps.find(app => app.options.selfId === meta.selfId)
+      if (!app) throw new Error(errors.NO_CORRESPONDING_APP)
+
       try {
-        await this.addProperties(meta)
-        this.emitEvents(meta)
+        await this.addProperties(meta, app)
+        this.emitEvents(meta, app)
       } catch (error) {
         console.error(error)
       }
     })
+
+    this.bind(app)
   }
 
-  emitEvents (meta: Meta) {
-    for (const path in this.app.contexts) {
-      const context = this.app.contexts[path]
+  bind (app: App) {
+    this._apps.push(app)
+    return this
+  }
+
+  emitEvents (meta: Meta, app: App) {
+    for (const path in app.contexts) {
+      const context = app.contexts[path]
       const types = context._getEventTypes(meta.$path)
       if (types.length) showReceiverLog(path, 'emits', types.join(', '))
       types.forEach(type => context.receiver.emit(type, meta))
     }
   }
 
-  async addProperties (meta: Meta) {
+  async addProperties (meta: Meta, app: App) {
     Object.defineProperty(meta, '$path', {
       value: '/',
       writable: true,
@@ -86,17 +107,17 @@ export class Server {
     // add context properties
     if (meta.postType === 'message') {
       if (meta.messageType === 'group') {
-        if (this.app.database) {
+        if (app.database) {
           Object.defineProperty(meta, '$group', {
-            value: await this.app.database.getGroup(meta.groupId),
+            value: await app.database.getGroup(meta.groupId),
             writable: true,
           })
         }
-        meta.$send = message => this.app.sender.sendGroupMsg(meta.groupId, message)
+        meta.$send = message => app.sender.sendGroupMsg(meta.groupId, message)
       } else if (meta.messageType === 'discuss') {
-        meta.$send = message => this.app.sender.sendDiscussMsg(meta.discussId, message)
+        meta.$send = message => app.sender.sendDiscussMsg(meta.discussId, message)
       } else {
-        meta.$send = message => this.app.sender.sendPrivateMsg(meta.userId, message)
+        meta.$send = message => app.sender.sendPrivateMsg(meta.userId, message)
       }
     }
   }
@@ -104,9 +125,8 @@ export class Server {
   listen (port: number) {
     this._httpServer = this._server.listen(port)
     showServerLog('listen to port', port)
-    for (const path in this.app.contexts) {
-      const context = this.app.contexts[path]
-      context.receiver.emit('connected', this.app)
+    for (const app of this._apps) {
+      app.receiver.emit('connected', app)
     }
   }
 

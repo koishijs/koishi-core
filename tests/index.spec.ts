@@ -49,6 +49,7 @@ describe('receiver', () => {
     await post({
       postType: 'message',
       userId: 10000,
+      selfId: 514,
       messageType: 'private',
       subType: 'friend',
       message: 'Hello',
@@ -64,6 +65,7 @@ describe('receiver', () => {
     await post({
       postType: 'message',
       groupId: 10000,
+      selfId: 514,
       messageType: 'group',
       subType: 'normal',
       message: 'World',

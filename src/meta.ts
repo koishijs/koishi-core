@@ -37,6 +37,7 @@ export interface Meta {
   comment?: string
   flag?: string
   metaEventType?: 'lifecycle' | 'heartbeat'
+  time?: number
 }
 
 export interface GroupMember {

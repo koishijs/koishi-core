@@ -224,7 +224,7 @@ export class Command {
         return meta.$send(messages.INSUFFICIENT_ARGUMENTS)
       }
       const finalArg = this._argsDef[this._argsDef.length - 1]
-      if (args.length > length && !finalArg.noSegment && !finalArg.variadic) {
+      if (args.length > this._argsDef.length && !finalArg.noSegment && !finalArg.variadic) {
         return meta.$send(messages.REDUNANT_ARGUMENTS)
       }
     }

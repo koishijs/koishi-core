@@ -1,5 +1,5 @@
 import escapeRegex from 'escape-string-regexp'
-import { Server } from './server'
+import { Server, createServer } from './server'
 import { Sender } from './sender'
 import { UserContext, UserOptions } from './user'
 import { GroupContext, GroupOptions } from './group'
@@ -11,7 +11,6 @@ import { updateActivity, showSuggestions } from './utils'
 import { simplify } from 'koishi-utils'
 import { EventEmitter } from 'events'
 import { Meta } from './meta'
-import * as errors from './errors'
 
 export interface AppOptions {
   port?: number
@@ -61,7 +60,7 @@ export class App extends Context {
     } else if (options.database) {
       database = this.database = createDatabase(options.database)
     }
-    this.server = new Server(this)
+    if (this.options.port) this.server = createServer(this)
     this.sender = new Sender(this.options.sendURL, this.options.token, this.receiver)
 
     // TODO: handle without selfId (standalone server)
