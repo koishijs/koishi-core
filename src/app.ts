@@ -194,7 +194,7 @@ export class App extends Context {
     }
 
     // execute command
-    if (parsedArgv) return parsedArgv.command.run(parsedArgv, next)
+    if (parsedArgv) return parsedArgv.command.execute(parsedArgv, next)
 
     // show suggestions
     const target = message.split(/\s/, 1)[0].toLowerCase()
@@ -212,7 +212,7 @@ export class App extends Context {
         const newMessage = suggestion + message.slice(target.length)
         const parsedArgv = this._parseCommandLine(newMessage, meta)
         // TODO: fields
-        return parsedArgv.command.run(parsedArgv, next)
+        return parsedArgv.command.execute(parsedArgv, next)
       },
     })
   }

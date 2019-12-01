@@ -53,7 +53,7 @@ export interface OptionConfig {
 }
 
 export interface CommandOption extends OptionConfig {
-  rawName: string
+  longest: string
   names: string[]
   camels: string[]
   negated: string[]
@@ -67,9 +67,11 @@ export function parseOption (rawName: string, description: string, config: Optio
 
   const negated: string[] = []
   const camels: string[] = []
-  let required = false, isBoolean = false
+  let required = false, isBoolean = false, longest = ''
   const names = removeBrackets(rawName).split(',').map((name: string) => {
-    name = name.trim().replace(/^-{1,2}/, '')
+    name = name.trim()
+    if (name.length > longest.length) longest = name
+    name = name.replace(/^-{1,2}/, '')
     if (name.startsWith('no-') && !config.noNegated && !optsDef[name.slice(3)]) {
       name = name.slice(3)
       const camel = camelCase(name)
@@ -89,7 +91,7 @@ export function parseOption (rawName: string, description: string, config: Optio
 
   return {
     ...config,
-    rawName,
+    longest,
     names,
     camels,
     negated,

@@ -105,7 +105,7 @@ export class Context {
     if (!command || !isAncestor(command.context.path, meta.$path)) {
       meta.$send(messages.COMMAND_NOT_FOUND)
     }
-    return command.run({ meta, command, args, options, rest, unknown: [] })
+    return command.execute({ meta, command, args, options, rest, unknown: [] })
   }
 
   end () {

@@ -2,6 +2,7 @@ import { Context, isAncestor, NextFunction } from './context'
 import { UserData, UserField } from './database'
 import { noop } from 'koishi-utils'
 import { Meta } from './meta'
+import { format } from 'util'
 import * as messages from './messages'
 import * as errors from './errors'
 import debug from 'debug'
@@ -103,10 +104,6 @@ export class Command {
     }
   }
 
-  get authority () {
-    return this.config.authority
-  }
-
   userFields (fields: Iterable<UserField>) {
     for (const field of fields) {
       this._userFields.add(field)
@@ -138,7 +135,7 @@ export class Command {
     config = this._shortcuts[name] = {
       name,
       command: this,
-      authority: this.authority,
+      authority: this.config.authority,
       ...config,
     }
     this.context.app._shortcutMap[name] = this
@@ -211,13 +208,40 @@ export class Command {
     return parseLine(source, this._argsDef, this._optsDef)
   }
 
-  async run (config: ParsedCommandLine, next: NextFunction = noop) {
+  async execute (config: ParsedCommandLine, next: NextFunction = noop) {
     const { meta, options, args, unknown } = config
     config.next = next
 
     // check action presence
     if (this.children.length && !this._action) {
       return this.context.runCommand('help', meta, [this.name])
+    }
+
+    // check argument count
+    if (this.config.checkArgCount) {
+      const nextArg = this._argsDef[args.length]
+      if (nextArg && nextArg.required) {
+        return meta.$send(messages.INSUFFICIENT_ARGUMENTS)
+      }
+      const finalArg = this._argsDef[this._argsDef.length - 1]
+      if (args.length > length && !finalArg.noSegment && !finalArg.variadic) {
+        return meta.$send(messages.REDUNANT_ARGUMENTS)
+      }
+    }
+
+    // check unknown options
+    if (this.config.checkUnknown && unknown.length) {
+      return meta.$send(format(messages.UNKNOWN_OPTIONS, unknown.join(', ')))
+    }
+
+    // check required options
+    if (this.config.checkRequired) {
+      const absent = this._options.filter((option) => {
+        return option.required && !(option.camels[0] in options)
+      })
+      if (absent.length) {
+        return meta.$send(format(messages.REQUIRED_OPTIONS, absent.join(', ')))
+      }
     }
 
     let isUsage = true
