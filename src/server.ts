@@ -1,7 +1,6 @@
 import WebSocket from 'ws'
 import express from 'express'
 import debug from 'debug'
-import * as errors from './errors'
 import { Server as HttpServer } from 'http'
 import { json } from 'body-parser'
 import { createHmac } from 'crypto'
@@ -133,7 +132,7 @@ export class Server {
     }
   }
 
-  close () {
+  stop () {
     if (!this._httpServer) return
     this._httpServer.close()
     showServerLog('closed')

@@ -1,5 +1,5 @@
 import { SERVER_URL, CLIENT_PORT, createServer, postMeta } from './utils'
-import { createApp, App, startAll, closeAll } from '../src'
+import { createApp, App, startAll, stopAll } from '../src'
 import { Server } from 'http'
 
 let app1: App, app2: App, app3: App
@@ -33,7 +33,7 @@ beforeAll(() => {
 })
 
 afterAll(() => {
-  closeAll()
+  stopAll()
   server.close()
 })
 

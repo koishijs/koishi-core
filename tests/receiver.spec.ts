@@ -27,7 +27,7 @@ beforeAll(() => {
 
 afterAll(() => {
   server.close()
-  app.close()
+  app.stop()
 })
 
 describe('receiver', () => {

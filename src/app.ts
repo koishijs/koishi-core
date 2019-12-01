@@ -1,3 +1,4 @@
+import debug from 'debug'
 import escapeRegex from 'escape-string-regexp'
 import { Server, createServer } from './server'
 import { Sender } from './sender'
@@ -5,7 +6,7 @@ import { UserContext, UserOptions } from './user'
 import { GroupContext, GroupOptions } from './group'
 import { DiscussContext, DiscussOptions } from './discuss'
 import { Context, Middleware, isAncestor, NextFunction } from './context'
-import { Command, showCommandLog, ShortcutConfig, ParsedCommandLine } from './command'
+import { Command, ShortcutConfig, ParsedCommandLine } from './command'
 import { Database, GroupFlag, UserFlag, UserField, createDatabase, DatabaseConfig } from './database'
 import { updateActivity, showSuggestions } from './utils'
 import { simplify } from 'koishi-utils'
@@ -32,6 +33,8 @@ const defaultOptions: AppOptions = {
 }
 
 let database: Database
+
+const showLog = debug('koishi')
 
 export class App extends Context {
   app = this
@@ -102,11 +105,13 @@ export class App extends Context {
   start () {
     this.sender.start()
     this.server.listen(this.options.port)
+    showLog('started')
   }
 
-  close () {
-    this.server.close()
-    this.sender.close()
+  stop () {
+    this.server.stop()
+    this.sender.stop()
+    showLog('stopped')
   }
 
   private async _preprocess (meta: Meta, next: NextFunction) {
@@ -219,7 +224,6 @@ export class App extends Context {
     const name = message.split(/\s/, 1)[0].toLowerCase()
     const command = this._commandMap[name]
     if (command && isAncestor(command.context.path, meta.$path)) {
-      showCommandLog('[matched] %s', message)
       const result = command.parse(message.slice(name.length).trimStart())
       return { meta, command, ...result }
     }

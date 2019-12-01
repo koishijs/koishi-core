@@ -1,5 +1,5 @@
-import { Context, isAncestor, NextFunction } from './context'
-import { UserData, UserField, User } from './database'
+import { Context, NextFunction } from './context'
+import { UserData, UserField } from './database'
 import { noop } from 'koishi-utils'
 import { Meta } from './meta'
 import { format } from 'util'
@@ -18,7 +18,7 @@ import {
   ParsedLine,
 } from './parser'
 
-export const showCommandLog = debug('app:command')
+const showCommandLog = debug('app:command')
 
 export interface ParsedCommandLine extends ParsedLine {
   meta: Meta
@@ -235,6 +235,7 @@ export class Command {
     }
 
     if (this._checkUser(meta, options)) {
+      showCommandLog('execute %s', this.name)
       return this._action(config, ...args)
     }
   }

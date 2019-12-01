@@ -40,8 +40,8 @@ export function startAll () {
   }
 }
 
-export function closeAll () {
+export function stopAll () {
   for (const id in apps) {
-    apps[id].close()
+    apps[id].stop()
   }
 }

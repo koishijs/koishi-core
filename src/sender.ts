@@ -34,7 +34,7 @@ export class Sender {
     }, 1000)
   }
 
-  close () {
+  stop () {
     clearInterval(this.timer)
   }
 
