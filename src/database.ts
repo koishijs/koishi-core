@@ -11,7 +11,7 @@ export enum UserFlag {
   ignore = 1,
 }
 
-export const userFlags = ['ignore']
+export const userFlags: (keyof typeof UserFlag)[] = ['ignore']
 
 export interface UserData {
   id: number
@@ -102,6 +102,7 @@ export interface Database extends Subdatabases {
   getGroup <K extends GroupField> (groupId: number, selfId?: number, keys?: K[]): Promise<Pick<GroupData, K>>
   getAllGroups <K extends GroupField> (keys?: K[], assignees?: number[]): Promise<Pick<GroupData, K>[]>
   setGroup (groupId: number, data: Partial<GroupData>): Promise<any>
+  getGroupCount (): Promise<number>
 }
 
 export interface DatabaseConfig {}
