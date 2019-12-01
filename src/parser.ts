@@ -135,8 +135,7 @@ export function parseValue (source: string | true, quoted: boolean, config: Comm
   return n * 0 === 0 ? n : source
 }
 
-export interface ParsedResult {
-  source: string
+export interface ParsedLine {
   rest: string
   args: string[]
   unknown: string[]
@@ -144,11 +143,10 @@ export interface ParsedResult {
 }
 
 export function parseLine (source: string, argsDef: CommandArgument[], optsDef: Record<string, CommandOption>) {
-  let arg: string, name: string, arg0: ParsedArg0
+  let arg: string, name: string, arg0: ParsedArg0, rest = ''
   const args: string[] = []
   const unknown: string[] = []
   const options: Record<string, any> = {}
-  const result: ParsedResult = { source, args, unknown, options, rest: '' }
 
   function handleOption (name: string, knownValue: any, unknownValue: any) {
     const config = optsDef[name]
@@ -182,7 +180,7 @@ export function parseLine (source: string, argsDef: CommandArgument[], optsDef: 
       continue
     } else if (arg === '--') {
       // rest part
-      result.rest = arg0.rest
+      rest = arg0.rest
       break
     }
 
@@ -232,5 +230,5 @@ export function parseLine (source: string, argsDef: CommandArgument[], optsDef: 
     }
   }
 
-  return result
+  return { options, rest, unknown, args } as ParsedLine
 }

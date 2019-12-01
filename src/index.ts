@@ -1,6 +1,7 @@
 import * as errors from './errors'
+import * as messages from './messages'
 
-export { errors }
+export { errors, messages }
 
 export * from './app'
 export * from './command'

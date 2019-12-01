@@ -1,21 +1,28 @@
-import { CommandOption, CommandArgument, OptionConfig, removeBrackets, parseArguments, parseOption, parseLine } from './parser'
 import { Context, isAncestor, NextFunction } from './context'
 import { UserData, UserField } from './database'
+import { noop } from 'koishi-utils'
 import { Meta } from './meta'
+import * as messages from './messages'
 import * as errors from './errors'
 import debug from 'debug'
 
+import {
+  CommandOption,
+  CommandArgument,
+  OptionConfig,
+  removeBrackets,
+  parseArguments,
+  parseOption,
+  parseLine,
+  ParsedLine,
+} from './parser'
+
 export const showCommandLog = debug('app:command')
 
-export interface ParsedArgv {
+export interface ParsedCommandLine extends ParsedLine {
   meta: Meta
-  name?: string
-  message?: string
-  args?: string[]
-  rawOptions?: Record<string, any>
-  options?: Record<string, any>
+  command: Command
   next?: NextFunction
-  command?: Command
 }
 
 export type UserType <T> = T | ((user: UserData, meta: Meta) => T)
@@ -31,6 +38,7 @@ export interface CommandConfig {
   usageName?: string
   /** description */
   description?: string
+  /** min authority */
   authority?: number
   authorityHint?: string
   hidden?: UserType<boolean>
@@ -63,7 +71,7 @@ export class Command {
   children: Command[] = []
   parent: Command = null
 
-  _action?: (this: Command, config: ParsedArgv, ...args: any[]) => any
+  _action?: (this: Command, config: ParsedCommandLine, ...args: string[]) => any
   _options: CommandOption[] = []
   _argsDef: CommandArgument[]
   _usage?: string
@@ -76,14 +84,23 @@ export class Command {
   constructor (public rawName: string, public context: Context, config: CommandConfig = {}) {
     this.name = removeBrackets(rawName)
     if (!this.name) {
-      throw new Error(errors.ERR_EXPECT_COMMAND_NAME)
+      throw new Error(errors.EXPECT_COMMAND_NAME)
     } else if (!/^[\w.-]+$/.exec(this.name)) {
-      throw new Error(errors.ERR_INVALID_CHARACTER)
+      throw new Error(errors.INVALID_CHARACTER)
     }
     this._argsDef = parseArguments(rawName)
     this.config = { ...defaultConfig, ...config }
-    context.app._registerCommand(this.name, this)
+    this._registerAlias(this.name)
     context.app._commands.push(this)
+  }
+
+  private _registerAlias (name: string) {
+    const previous = this.context.app._commandMap[name]
+    if (!previous) {
+      this.context.app._commandMap[name] = this
+    } else if (previous !== this) {
+      throw new Error(errors.DUPLICATE_COMMAND)
+    }
   }
 
   get authority () {
@@ -99,7 +116,7 @@ export class Command {
 
   alias (...names: string[]) {
     for (const name of names) {
-      this.context.app._registerCommand(name, this)
+      this._registerAlias(name)
       this._aliases.add(name)
     }
     return this
@@ -110,7 +127,7 @@ export class Command {
     if (dotPrefixed) name = this.name + name
     const [firstName] = name.split(/(?=[\s/])/, 1)
     if (this.context.app._commandMap[firstName]) {
-      throw new Error(errors.ERR_EXISTING_SUBCOMMAND)
+      throw new Error(errors.EXISTING_SUBCOMMAND)
     }
     if (!dotPrefixed) name = this.name + '/' + name
     const command = this.context.command(name, description, config)
@@ -150,14 +167,14 @@ export class Command {
     this._options.push(option)
     for (const name of option.names) {
       if (name in this._optsDef) {
-        throw new Error(errors.ERR_DUPLICATE_OPTION)
+        throw new Error(errors.DUPLICATE_OPTION)
       }
       this._optsDef[name] = option
     }
     return this
   }
 
-  action (callback: (this: this, options: ParsedArgv, ...args: any[]) => any) {
+  action (callback: (this: this, options: ParsedCommandLine, ...args: any[]) => any) {
     this._action = callback
     return this
   }
@@ -194,38 +211,33 @@ export class Command {
     return parseLine(source, this._argsDef, this._optsDef)
   }
 
-  async run (config: ParsedArgv) {
-    const { meta } = config
+  async run (config: ParsedCommandLine, next: NextFunction = noop) {
+    const { meta, options, args, unknown } = config
+    config.next = next
+
+    // check action presence
     if (this.children.length && !this._action) {
-      return this.context.runCommand('help', { meta, args: [this.name] })
+      return this.context.runCommand('help', meta, [this.name])
     }
 
     let isUsage = true
     const user = meta.$user
-    config = {
-      args: [],
-      name: this.name,
-      rawOptions: {},
-      options: {},
-      next: () => {},
-      ...config,
-    }
 
-    // 检查使用权限
+    // check authority
     if (this.config.authority > user.authority) {
-      return config.meta.$send('权限不足')
+      return meta.$send(messages.LOW_AUTHORITY)
     }
     for (const option of this._options) {
-      if (option.camels[0] in config.options) {
-        if (option.authority > user.authority) return config.meta.$send('权限不足')
+      if (option.camels[0] in options) {
+        if (option.authority > user.authority) return meta.$send(messages.LOW_AUTHORITY)
         if (option.notUsage) isUsage = false
       }
     }
 
-    // 检查触发次数与间隔
-    const minInterval = this.getConfig('minInterval', config.meta)
+    // check usage
+    const minInterval = this.getConfig('minInterval', meta)
     if (isUsage || minInterval > 0) {
-      const maxUsage = this.getConfig('maxUsage', config.meta)
+      const maxUsage = this.getConfig('maxUsage', meta)
 
       if (maxUsage < Infinity || minInterval > 0) {
         const date = new Date()
@@ -235,7 +247,7 @@ export class Command {
           const now = date.valueOf()
           if (now - usage.last <= minInterval) {
             if (this.config.showWarning) {
-              await config.meta.$send('调用过于频繁，请稍后再试')
+              await meta.$send(messages.TOO_FREQUENT)
             }
             return
           }
@@ -243,7 +255,7 @@ export class Command {
         }
 
         if (usage.count >= maxUsage && isUsage) {
-          await config.meta.$send('调用次数已达上限')
+          await meta.$send(messages.USAGE_EXHAUSTED)
           return
         } else {
           usage.count++
@@ -251,7 +263,6 @@ export class Command {
       }
     }
 
-    const args = this._argsDef.map((arg, index) => arg.variadic ? config.args.slice(index) : config.args[index])
     return this._action(config, ...args)
   }
 

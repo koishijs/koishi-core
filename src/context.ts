@@ -1,9 +1,10 @@
-import { Command, CommandConfig, ParsedArgv } from './command'
+import { Command, CommandConfig } from './command'
 import { EventEmitter } from 'events'
 import { Meta } from './meta'
 import { Sender } from './sender'
 import { App } from './app'
 import { Database } from './database'
+import * as messages from './messages'
 import * as errors from './errors'
 
 export type NextFunction = (next?: NextFunction) => void | Promise<void>
@@ -14,7 +15,6 @@ export function isAncestor (ancestor: string, path: string) {
   return path.startsWith(ancestor) || path.replace(/\d+/, '*').startsWith(ancestor)
 }
 
-export const MESSAGE_COMMAND_NOT_FOUND = '指令未找到。'
 export const prefixTypes = ['user', 'discuss', 'group']
 
 export class Context {
@@ -51,15 +51,15 @@ export class Context {
     let command = this.app._commandMap[name]
     if (command) {
       if (parent && command.parent !== parent) {
-        throw new Error(errors.ERR_WRONG_SUBCOMMAND)
+        throw new Error(errors.WRONG_SUBCOMMAND)
       }
       if (!isAncestor(command.context.path, this.path)) {
-        throw new Error(errors.ERR_WRONG_CONTEXT)
+        throw new Error(errors.WRONG_CONTEXT)
       }
       return command
     }
     if (parent && !isAncestor(parent.context.path, this.path)) {
-      throw new Error(errors.ERR_WRONG_CONTEXT)
+      throw new Error(errors.WRONG_CONTEXT)
     }
     command = new Command(name, this)
     if (parent) {
@@ -96,14 +96,16 @@ export class Context {
   getCommand (name: string, meta?: Meta) {
     name = name.split(' ', 1)[0]
     const path = meta ? meta.$path : this.path
-    // TODO: use _commandMap
-    return this.app._commands.find(cmd => cmd.match(name, path))
+    const command = this.app._commandMap[name]
+    return command && isAncestor(command.context.path, path) && command
   }
 
-  runCommand (name: string, parsedArgv: ParsedArgv) {
-    const command = this.app._commands.find(cmd => cmd.match(name, parsedArgv.meta.$path))
-    if (command) return command.run(parsedArgv)
-    return parsedArgv.meta.$send(MESSAGE_COMMAND_NOT_FOUND)
+  runCommand (name: string, meta: Meta, args: string[] = [], options: Record<string, any> = {}, rest = '') {
+    const command = this.app._commandMap[name]
+    if (!command || !isAncestor(command.context.path, meta.$path)) {
+      meta.$send(messages.COMMAND_NOT_FOUND)
+    }
+    return command.run({ meta, command, args, options, rest, unknown: [] })
   }
 
   end () {

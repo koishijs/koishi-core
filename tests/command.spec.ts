@@ -31,8 +31,8 @@ describe('register commands', () => {
   })
 
   test('check names', () => {
-    expect(() => app.command('<xyz>')).toThrow(errors.ERR_EXPECT_COMMAND_NAME)
-    expect(() => app.command('xyz?123')).toThrow(errors.ERR_INVALID_CHARACTER)
+    expect(() => app.command('<xyz>')).toThrow(errors.EXPECT_COMMAND_NAME)
+    expect(() => app.command('xyz?123')).toThrow(errors.INVALID_CHARACTER)
     expect(() => app.command('w/x-y.z')).not.toThrow()
   })
 
@@ -45,12 +45,12 @@ describe('register commands', () => {
     expect(() => {
       app.user(10000).command('f')
       app.command('f')
-    }).toThrow(errors.ERR_WRONG_CONTEXT)
+    }).toThrow(errors.WRONG_CONTEXT)
 
     expect(() => {
       app.command('g').alias('x')
       app.command('h').alias('x')
-    }).toThrow(errors.ERR_DUPLICATE_COMMAND)
+    }).toThrow(errors.DUPLICATE_COMMAND)
   })
 })
 
@@ -93,9 +93,9 @@ describe('register subcommands', () => {
   })
 
   test('check existence', () => {
-    expect(() => b.subcommand('x')).toThrow(errors.ERR_EXISTING_SUBCOMMAND)
-    expect(() => app.command('e/x')).toThrow(errors.ERR_WRONG_SUBCOMMAND)
-    expect(() => a.subcommand('d/e')).toThrow(errors.ERR_WRONG_SUBCOMMAND)
+    expect(() => b.subcommand('x')).toThrow(errors.EXISTING_SUBCOMMAND)
+    expect(() => app.command('e/x')).toThrow(errors.WRONG_SUBCOMMAND)
+    expect(() => a.subcommand('d/e')).toThrow(errors.WRONG_SUBCOMMAND)
     expect(() => a.subcommand('d.e')).not.toThrow()
   })
 })

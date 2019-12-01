@@ -5,7 +5,7 @@ import { UserContext, UserOptions } from './user'
 import { GroupContext, GroupOptions } from './group'
 import { DiscussContext, DiscussOptions } from './discuss'
 import { Context, Middleware, isAncestor, NextFunction } from './context'
-import { Command, showCommandLog, ShortcutConfig, ParsedArgv } from './command'
+import { Command, showCommandLog, ShortcutConfig, ParsedCommandLine } from './command'
 import { Database, GroupFlag, UserFlag, UserField, createDatabase, DatabaseConfig } from './database'
 import { updateActivity, showSuggestions } from './utils'
 import { simplify } from 'koishi-utils'
@@ -127,9 +127,10 @@ export class App extends Context {
 
     message = simplify(message)
     const fields: UserField[] = []
-    let parsedArgv: ParsedArgv
+    let parsedArgv: ParsedCommandLine
     const canBeCommand = meta.messageType === 'private' || prefix
     const canBeShortcut = prefix !== '.'
+    // parse as command
     if (canBeCommand && (parsedArgv = this._parseCommandLine(message, meta))) {
       fields.push(...parsedArgv.command._userFields)
     } else if (canBeShortcut) {
@@ -142,10 +143,10 @@ export class App extends Context {
           let _message = message.slice(name.length)
           if (fuzzy && !shortcut.prefix && _message.match(/^\S/)) continue
           if (oneArg) _message = `'${_message.trim()}'`
-          const { args, options: parsedOptions, rest, unknown } = command.parse(_message)
-          const options = { ...parsedOptions, ...shortcut.options }
+          const result = command.parse(_message)
+          Object.assign(result.options, shortcut.options)
           fields.push(...command._userFields)
-          parsedArgv = { name, meta, message, options, args, command }
+          parsedArgv = { meta, command, ...result }
           break
         }
       }
@@ -193,10 +194,7 @@ export class App extends Context {
     }
 
     // execute command
-    if (parsedArgv) {
-      parsedArgv.next = next
-      return parsedArgv.command.run(parsedArgv)
-    }
+    if (parsedArgv) return parsedArgv.command.run(parsedArgv, next)
 
     // show suggestions
     const target = message.split(/\s/, 1)[0].toLowerCase()
@@ -210,32 +208,22 @@ export class App extends Context {
       postfix: '发送空行以调用推测的指令。',
       items: Object.keys(this._commandMap),
       command: suggestion => this._commandMap[suggestion],
-      execute (suggestion, meta) {
+      execute: (suggestion, meta, next) => {
         const newMessage = suggestion + message.slice(target.length)
         const parsedArgv = this._parseCommandLine(newMessage, meta)
-        return parsedArgv.command.run(parsedArgv)
+        // TODO: fields
+        return parsedArgv.command.run(parsedArgv, next)
       },
     })
   }
 
-  _registerCommand (name: string, command: Command) {
-    const previous = this._commandMap[name]
-    if (!previous) {
-      this._commandMap[name] = command
-    } else if (previous !== command) {
-      throw new Error(errors.ERR_DUPLICATE_COMMAND)
-    }
-  }
-
-  _parseCommandLine (message: string, meta: Meta): ParsedArgv {
+  private _parseCommandLine (message: string, meta: Meta): ParsedCommandLine {
     const name = message.split(/\s/, 1)[0].toLowerCase()
     const command = this._commandMap[name]
     if (command && isAncestor(command.context.path, meta.$path)) {
-      // parse as command
-      showCommandLog('command: %s', name)
-      message = message.slice(name.length).trimStart()
-      const { options, unknown, rest, args } = command.parse(message)
-      return { name, meta, message, options, args, command }
+      showCommandLog('[matched] %s', message)
+      const result = command.parse(message.slice(name.length).trimStart())
+      return { meta, command, ...result }
     }
   }
 

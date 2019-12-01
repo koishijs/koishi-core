@@ -1,6 +1,6 @@
-import { App, Command, ParsedResult } from '../src'
+import { App, Command, ParsedLine } from '../src'
 
-let app: App, cmd1: Command, cmd2: Command, result: ParsedResult
+let app: App, cmd1: Command, cmd2: Command, result: ParsedLine
 
 jest.setTimeout(1000)
 

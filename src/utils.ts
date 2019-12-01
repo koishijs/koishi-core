@@ -71,7 +71,7 @@ interface SuggestOptions {
   prefix: string
   postfix: string
   command: Command | ((suggestion: string) => Command)
-  execute: (suggestion: string, meta: Meta) => any
+  execute: (suggestion: string, meta: Meta, next: NextFunction) => any
 }
 
 export const SIMILARITY_COEFFICIENT = 0.4
@@ -104,7 +104,7 @@ export function showSuggestions (options: SuggestOptions) {
         command.context.removeMiddleware(middleware)
         if (!meta.message.trim()) {
           meta.$user = await command.context.database.observeUser(userId, 0, fields)
-          return execute(suggestions[0], meta)
+          return execute(suggestions[0], meta, next)
         } else {
           return next()
         }
