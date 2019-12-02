@@ -239,10 +239,10 @@ export class App extends Context {
       postfix: '发送空行以调用推测的指令。',
       items: Object.keys(this._commandMap),
       command: suggestion => this._commandMap[suggestion],
-      execute: (suggestion, meta, next) => {
+      execute: async (suggestion, meta, next) => {
         const newMessage = suggestion + message.slice(target.length)
         const parsedArgv = this._parseCommandLine(newMessage, meta)
-        // TODO: fields
+        await this.app.database.observeUser(meta.$user, 0, Array.from(parsedArgv.command._userFields))
         return parsedArgv.command.execute(parsedArgv, next)
       },
     })
