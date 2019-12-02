@@ -9,7 +9,10 @@ import * as errors from './errors'
 
 export type NextFunction = (next?: NextFunction) => void | Promise<void>
 export type Middleware = (meta: Meta, next: NextFunction) => void | Promise<void>
-export type Plugin <T extends Context, U = {}> = ((ctx: T, options: U) => void) | { apply (ctx: T, options: U): void }
+
+type PluginFunction <T extends Context, U> = (ctx: T, options: U) => void
+type PluginObject <T extends Context, U> = { apply: PluginFunction<T, U> }
+export type Plugin <T extends Context, U = {}> = PluginFunction<T, U> | PluginObject<T, U>
 
 export function isAncestor (ancestor: string, path: string) {
   return path.startsWith(ancestor) || path.replace(/\d+/, '*').startsWith(ancestor)
@@ -24,7 +27,10 @@ export class Context {
 
   constructor (public path: string, public app?: App) {}
 
-  plugin <U> (plugin: Plugin<this, U>, options: U = {} as any) {
+  plugin <U> (plugin: PluginFunction<this, U>, options: U): this
+  plugin <U> (plugin: PluginObject<this, U>, options: U): this
+  plugin (plugin: Plugin<this>, options = {}) {
+    if (options === false) return
     const app = Object.create(this)
     if (typeof plugin === 'function') {
       plugin(app, options)

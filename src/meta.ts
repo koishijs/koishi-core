@@ -95,34 +95,3 @@ export interface VersionInfo {
   pluginBuildNumber: number
   pluginBuildConfiguration: string
 }
-
-export interface CQCode {
-  type: string
-  data: Record<string, string | number>
-}
-
-export const CQCodeRegExp = /\[CQ:(\w+)((,\w+=[^,=\]]*)+)\]/
-
-export function parseCQCode (message: string) {
-  const output: CQCode[] = []
-  while (message.length) {
-    const result = message.match(CQCodeRegExp)
-    if (!result) {
-      output.push({
-        type: 'text',
-        data: { text: message },
-      })
-      break
-    } else {
-      const [code, type, attrs] = result
-      const data: Record<string, string | number> = {}
-      attrs.slice(1).split(/,/g).forEach((str) => {
-        const [_, key, value] = str.match(/^(\w+)=(.+)$/)
-        data[key] = value
-      })
-      output.push({ type, data })
-      message = message.slice(code.length)
-    }
-  }
-  return output
-}

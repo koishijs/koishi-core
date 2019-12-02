@@ -92,9 +92,14 @@ export class App extends Context {
     this.options = { ...defaultOptions, ...options }
     if (options.database) this.database = createDatabase(options.database)
     if (options.port) this.server = createServer(this)
+    if (options.selfId) this._registerSelfId()
     this.sender = new Sender(this.options.sendURL, this.options.token, this.receiver)
+    this.receiver.on('message', meta => this._applyMiddlewares(meta))
+    this.middleware((meta, next) => this._preprocess(meta, next))
+  }
 
-    const atMeRE = `\\[CQ:at,qq=${this.app.options.selfId}\\]`
+  _registerSelfId () {
+    const atMeRE = `\\[CQ:at,qq=${this.options.selfId}\\]`
     if (this.app.options.name) {
       const nameRE = escapeRegex(this.app.options.name)
       this.prefixRE = new RegExp(`^(${atMeRE} *|@${nameRE} +|${nameRE}[,，\\s]+|\\.)`)
@@ -103,9 +108,6 @@ export class App extends Context {
       this.prefixRE = new RegExp(`^(${atMeRE} *|\\.)`)
       this.userPrefixRE = new RegExp('^\\.')
     }
-
-    this.receiver.on('message', meta => this._applyMiddlewares(meta))
-    this.middleware((meta, next) => this._preprocess(meta, next))
   }
 
   private _createContext <T extends Context> (path: string, create: () => T = () => new Context(path) as T) {

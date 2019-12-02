@@ -26,6 +26,7 @@ export function createServer (app: App) {
 
 export class Server {
   private _apps: App[] = []
+  private _appMap: Record<number, App> = {}
   private _server = express().use(json())
   private _socket: WebSocket
   private _httpServer: HttpServer
@@ -57,8 +58,14 @@ export class Server {
 
     this._server.use(async (req, res) => {
       const meta = camelCase(req.body) as Meta
-      const app = this._apps.find(app => app.options.selfId === meta.selfId)
-      if (!app) return res.sendStatus(403)
+      if (!this._appMap[meta.selfId]) {
+        const index = this._apps.findIndex(app => !app.options.selfId)
+        if (index < 0) return res.sendStatus(403)
+        this._appMap[meta.selfId] = this._apps[index]
+        this._apps[index].options.selfId = meta.selfId
+        this._apps[index]._registerSelfId()
+      }
+      const app = this._appMap[meta.selfId]
       res.sendStatus(200)
       showServerLog('receive %o', meta)
 
@@ -75,6 +82,9 @@ export class Server {
 
   bind (app: App) {
     this._apps.push(app)
+    if (app.options.selfId) {
+      this._appMap[app.options.selfId] = app
+    }
     return this
   }
 
