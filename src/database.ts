@@ -91,18 +91,18 @@ export function createGroup (id: number, assignee: number) {
 
 export interface Database extends Subdatabases {
   // user methods
-  getUser <K extends UserField> (userId: number, defaultAuthority?: number, keys?: K[]): Promise<Pick<UserData, K>>
-  getUsers <K extends UserField> (ids: number[], keys?: K[]): Promise<Pick<UserData, K>[]>
-  getAllUsers <K extends UserField> (keys?: K[]): Promise<Pick<UserData, K>[]>
+  getUser <K extends UserField> (userId: number, defaultAuthority?: number, fields?: K[]): Promise<Pick<UserData, K>>
+  getUsers <K extends UserField> (ids: number[], fields?: K[]): Promise<Pick<UserData, K>[]>
+  getAllUsers <K extends UserField> (fields?: K[]): Promise<Pick<UserData, K>[]>
   setUser (userId: number, data: Partial<UserData>): Promise<any>
-  observeUser <K extends UserField> (user: number | UserData, defaultAuthority?: number, keys?: K[]): Promise<User<K>>
+  observeUser <K extends UserField> (user: number | UserData, defaultAuthority?: number, fields?: K[]): Promise<User<K>>
   getUserCount (): Promise<number>
 
   // group methods
-  getGroup <K extends GroupField> (groupId: number, selfId?: number, keys?: K[]): Promise<Pick<GroupData, K>>
-  getAllGroups <K extends GroupField> (keys?: K[], assignees?: number[]): Promise<Pick<GroupData, K>[]>
+  getGroup <K extends GroupField> (groupId: number, selfId?: number, fields?: K[]): Promise<Pick<GroupData, K>>
+  getAllGroups <K extends GroupField> (fields?: K[], assignees?: number[]): Promise<Pick<GroupData, K>[]>
   setGroup (groupId: number, data: Partial<GroupData>): Promise<any>
-  observeUser <K extends GroupField> (group: number | GroupData, defaultAuthority?: number, keys?: K[]): Promise<Observed<Pick<GroupData, K>>>
+  observeGroup <K extends GroupField> (group: number | GroupData, selfId?: number, fields?: K[]): Promise<Observed<Pick<GroupData, K>>>
   getGroupCount (): Promise<number>
 }
 
