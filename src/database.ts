@@ -92,7 +92,7 @@ export function createGroup (id: number, assignee: number) {
 export interface Database extends Subdatabases {
   // user methods
   getUser <K extends UserField> (userId: number, defaultAuthority?: number, keys?: K[]): Promise<Pick<UserData, K>>
-  getUsers <K extends UserField> (ids: number[], keys?: UserField[]): Promise<Pick<UserData, K>[]>
+  getUsers <K extends UserField> (ids: number[], keys?: K[]): Promise<Pick<UserData, K>[]>
   getAllUsers <K extends UserField> (keys?: K[]): Promise<Pick<UserData, K>[]>
   setUser (userId: number, data: Partial<UserData>): Promise<any>
   observeUser <K extends UserField> (user: number | UserData, defaultAuthority?: number, keys?: K[]): Promise<User<K>>

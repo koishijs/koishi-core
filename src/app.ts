@@ -22,19 +22,52 @@ export interface AppOptions {
   selfId?: number
   wsServer?: string
   database?: DatabaseConfig
-  shareConnection?: boolean
-  imageServerKey?: string
 }
 
 const defaultOptions: AppOptions = {
   port: 8080,
   sendURL: 'http://127.0.0.1:5700',
-  shareConnection: true,
 }
 
-let database: Database
-
 const showLog = debug('koishi')
+export const selfIds: number[] = []
+export const apps: Record<number, App> = {}
+
+export function createApp (options: AppOptions = {}) {
+  const app = new App(options)
+  apps[options.selfId] = app
+  selfIds.push(options.selfId)
+  return app
+}
+
+export function eachApp (callback: (app: App) => any) {
+  for (const id in apps) {
+    callback(apps[id])
+  }
+}
+
+const onStartHooks = new Set<(...app: App[]) => void>()
+
+export function onStart (hook: (...app: App[]) => void) {
+  onStartHooks.add(hook)
+}
+
+export function startAll () {
+  const appList: App[] = []
+  for (const id in apps) {
+    apps[id].start()
+    appList.push(apps[id])
+  }
+  for (const hook of onStartHooks) {
+    hook(...appList)
+  }
+}
+
+export function stopAll () {
+  for (const id in apps) {
+    apps[id].stop()
+  }
+}
 
 export class App extends Context {
   app = this
@@ -57,15 +90,10 @@ export class App extends Context {
   constructor (options: AppOptions = {}) {
     super('/')
     this.options = { ...defaultOptions, ...options }
-    if (database && options.shareConnection) {
-      this.database = database
-    } else if (options.database) {
-      database = this.database = createDatabase(options.database)
-    }
-    if (this.options.port) this.server = createServer(this)
+    if (options.database) this.database = createDatabase(options.database)
+    if (options.port) this.server = createServer(this)
     this.sender = new Sender(this.options.sendURL, this.options.token, this.receiver)
 
-    // TODO: handle without selfId (standalone server)
     const atMeRE = `\\[CQ:at,qq=${this.app.options.selfId}\\]`
     if (this.app.options.name) {
       const nameRE = escapeRegex(this.app.options.name)

@@ -1,4 +1,5 @@
-import { App, Command, errors } from '../src'
+import { App, Command } from '../src'
+import * as errors from '../src/errors'
 
 let app: App
 

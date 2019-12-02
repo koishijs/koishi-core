@@ -72,6 +72,7 @@ export class Command {
   children: Command[] = []
   parent: Command = null
 
+  _aliases: string[] = []
   _action?: (this: Command, config: ParsedCommandLine, ...args: string[]) => any
   _options: CommandOption[] = []
   _argsDef: CommandArgument[]
@@ -96,6 +97,7 @@ export class Command {
   }
 
   private _registerAlias (name: string) {
+    this._aliases.push(name)
     const previous = this.context.app._commandMap[name]
     if (!previous) {
       this.context.app._commandMap[name] = this

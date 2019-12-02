@@ -1,6 +1,6 @@
 {
   "name": "koishi-core",
-  "version": "0.1.5",
+  "version": "0.1.7",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
   "files": [
@@ -13,6 +13,14 @@
     "lint": "eslint src --ext .ts",
     "prepack": "tsc -b"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/koishijs/koishi-core.git"
+  },
+  "bugs": {
+    "url": "https://github.com/koishijs/koishi-core/issues"
+  },
+  "homepage": "https://github.com/koishijs/koishi-core#readme",
   "devDependencies": {
     "@types/body-parser": "^1.17.1",
     "@types/debug": "^4.1.5",

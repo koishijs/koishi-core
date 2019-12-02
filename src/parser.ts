@@ -53,6 +53,7 @@ export interface OptionConfig {
 }
 
 export interface CommandOption extends OptionConfig {
+  rawName: string
   longest: string
   names: string[]
   camels: string[]
@@ -91,6 +92,7 @@ export function parseOption (rawName: string, description: string, config: Optio
 
   return {
     ...config,
+    rawName,
     longest,
     names,
     camels,
