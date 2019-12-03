@@ -32,7 +32,7 @@ const userGetters: UserGetter[] = []
 
 export function extendUser (getter: UserGetter) {
   userGetters.push(getter)
-  userFields.push(Object.keys(getter(0, 0)) as any)
+  userFields.push(...Object.keys(getter(0, 0)) as any)
 }
 
 extendUser((id, authority) => ({
@@ -73,6 +73,7 @@ const groupGetters: GroupGetter[] = []
 
 export function extendGroup (getter: GroupGetter) {
   groupGetters.push(getter)
+  groupFields.push(...Object.keys(getter(0, 0)) as any)
 }
 
 extendGroup((id, assignee) => ({

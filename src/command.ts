@@ -97,6 +97,7 @@ export class Command {
   }
 
   private _registerAlias (name: string) {
+    name = name.toLowerCase()
     this._aliases.push(name)
     const previous = this.context.app._commandMap[name]
     if (!previous) {
@@ -124,7 +125,7 @@ export class Command {
     const dotPrefixed = name.startsWith('.')
     if (dotPrefixed) name = this.name + name
     const [firstName] = name.split(/(?=[\s/])/, 1)
-    if (this.context.app._commandMap[firstName]) {
+    if (this.context.app._commandMap[firstName.toLowerCase()]) {
       throw new Error(errors.EXISTING_SUBCOMMAND)
     }
     if (!dotPrefixed) name = this.name + '/' + name

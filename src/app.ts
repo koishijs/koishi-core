@@ -5,7 +5,7 @@ import { Sender } from './sender'
 import { UserContext, UserOptions } from './user'
 import { GroupContext, GroupOptions } from './group'
 import { DiscussContext, DiscussOptions } from './discuss'
-import { Context, Middleware, isAncestor, NextFunction } from './context'
+import { Context, Middleware, isAncestor, NextFunction, Plugin } from './context'
 import { Command, ShortcutConfig, ParsedCommandLine } from './command'
 import { Database, GroupFlag, UserFlag, UserField, createDatabase, DatabaseConfig } from './database'
 import { updateActivity, showSuggestions } from './utils'
@@ -22,6 +22,7 @@ export interface AppOptions {
   selfId?: number
   wsServer?: string
   database?: DatabaseConfig
+  plugins?: [Plugin<Context>, any?][]
 }
 
 const defaultOptions: AppOptions = {
@@ -96,6 +97,9 @@ export class App extends Context {
     this.sender = new Sender(this.options.sendURL, this.options.token, this.receiver)
     this.receiver.on('message', meta => this._applyMiddlewares(meta))
     this.middleware((meta, next) => this._preprocess(meta, next))
+    for (const [plugin, config] of options.plugins || []) {
+      this.plugin(plugin, config)
+    }
   }
 
   _registerSelfId () {
@@ -244,7 +248,6 @@ export class App extends Context {
       execute: async (suggestion, meta, next) => {
         const newMessage = suggestion + message.slice(target.length)
         const parsedArgv = this._parseCommandLine(newMessage, meta)
-        await this.app.database.observeUser(meta.$user, 0, Array.from(parsedArgv.command._userFields))
         return parsedArgv.command.execute(parsedArgv, next)
       },
     })

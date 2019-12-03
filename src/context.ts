@@ -54,7 +54,7 @@ export class Context {
   }
 
   private _getChildCommand (name: string, parent?: Command) {
-    let command = this.app._commandMap[name]
+    let command = this.app._commandMap[name.toLowerCase()]
     if (command) {
       if (parent && command.parent !== parent) {
         throw new Error(errors.WRONG_SUBCOMMAND)
@@ -102,12 +102,12 @@ export class Context {
   getCommand (name: string, meta?: Meta) {
     name = name.split(' ', 1)[0]
     const path = meta ? meta.$path : this.path
-    const command = this.app._commandMap[name]
+    const command = this.app._commandMap[name.toLowerCase()]
     return command && isAncestor(command.context.path, path) && command
   }
 
   runCommand (name: string, meta: Meta, args: string[] = [], options: Record<string, any> = {}, rest = '') {
-    const command = this.app._commandMap[name]
+    const command = this.app._commandMap[name.toLowerCase()]
     if (!command || !isAncestor(command.context.path, meta.$path)) {
       meta.$send(messages.COMMAND_NOT_FOUND)
     }
