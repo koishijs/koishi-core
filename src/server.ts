@@ -105,13 +105,16 @@ export class Server {
     if (meta.postType === 'message') {
       const messageType = meta.messageType === 'private' ? 'user' : meta.messageType
       meta.$path += `${messageType}/${meta.groupId || meta.discussId || meta.userId}/message`
+    } else if (meta.postType === 'request') {
+      meta.$path += `${meta.requestType === 'friend' ? 'user' : 'group'}/${meta.groupId || meta.userId}/request`
     } else if (meta.groupId) {
-      meta.$path += `group/${meta.groupId}/${meta.requestType || meta.noticeType}`
+      meta.$path += `group/${meta.groupId}/${meta.noticeType}`
+    } else if (meta.userId) {
+      meta.$path += `user/${meta.userId}/${meta.noticeType}`
     } else {
-      meta.$path += `${meta.postType}/${meta.requestType || meta.noticeType || meta.metaEventType}`
+      meta.$path += `meta_event/${meta.metaEventType}`
     }
     if (meta.subType) meta.$path += '/' + meta.subType
-    if (meta.userId && meta.messageType !== 'private') meta.$path += '/' + meta.userId
     showReceiverLog('path %s', meta.$path)
 
     // add context properties

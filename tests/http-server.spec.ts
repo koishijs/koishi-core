@@ -12,19 +12,19 @@ beforeAll(() => {
 
   app1 = createApp({
     port: CLIENT_PORT,
-    sendURL: SERVER_URL,
+    sendUrl: SERVER_URL,
     selfId: 514,
   })
 
   app2 = createApp({
     port: CLIENT_PORT,
-    sendURL: SERVER_URL,
+    sendUrl: SERVER_URL,
     selfId: 515,
   })
 
   app3 = createApp({
     port: CLIENT_PORT + 1,
-    sendURL: SERVER_URL,
+    sendUrl: SERVER_URL,
     selfId: 516,
     secret: 'secret',
   })

@@ -2,16 +2,16 @@ import debug from 'debug'
 import escapeRegex from 'escape-string-regexp'
 import { Server, createServer } from './server'
 import { Sender } from './sender'
-import { UserContext, UserOptions } from './user'
-import { GroupContext, GroupOptions } from './group'
-import { DiscussContext, DiscussOptions } from './discuss'
+import { UserContext, UserOptions, UserMessageEvent, UserNoticeEvent, UserRequestEvent } from './user'
+import { GroupContext, GroupOptions, GroupMessageEvent, GroupNoticeEvent, GroupRequestEvent } from './group'
+import { DiscussContext, DiscussOptions, DiscussMessageEvent } from './discuss'
 import { Context, Middleware, isAncestor, NextFunction, Plugin } from './context'
 import { Command, ShortcutConfig, ParsedCommandLine } from './command'
 import { Database, GroupFlag, UserFlag, UserField, createDatabase, DatabaseConfig } from './database'
 import { updateActivity, showSuggestions } from './utils'
 import { simplify } from 'koishi-utils'
 import { EventEmitter } from 'events'
-import { Meta } from './meta'
+import { Meta, MessageMeta } from './meta'
 import * as errors from './errors'
 
 export interface AppOptions {
@@ -19,7 +19,7 @@ export interface AppOptions {
   name?: string
   token?: string
   secret?: string
-  sendURL?: string
+  sendUrl?: string
   selfId?: number
   wsServer?: string
   database?: DatabaseConfig
@@ -28,7 +28,7 @@ export interface AppOptions {
 
 const defaultOptions: AppOptions = {
   port: 8080,
-  sendURL: 'http://127.0.0.1:5700',
+  sendUrl: 'http://127.0.0.1:5700',
 }
 
 const showLog = debug('koishi')
@@ -97,7 +97,7 @@ export class App extends Context {
     if (options.database) this.database = createDatabase(options.database)
     if (options.port) this.server = createServer(this)
     if (options.selfId) this._registerSelfId()
-    this.sender = new Sender(this.options.sendURL, this.options.token, this.receiver)
+    this.sender = new Sender(this.options.sendUrl, this.options.token, this.receiver)
     this.receiver.on('message', this._applyMiddlewares)
     this.middleware(this._preprocess)
     for (const [plugin, config] of options.plugins || []) {
@@ -155,7 +155,7 @@ export class App extends Context {
     this.receiver.emit('warning', new Error(message))
   }
 
-  private _preprocess = async (meta: Meta, next: NextFunction) => {
+  private _preprocess = async (meta: MessageMeta, next: NextFunction) => {
     // strip prefix
     let message = meta.message.trim()
     let prefix = ''
@@ -260,7 +260,7 @@ export class App extends Context {
     })
   }
 
-  private _parseCommandLine (message: string, meta: Meta): ParsedCommandLine {
+  private _parseCommandLine (message: string, meta: MessageMeta): ParsedCommandLine {
     const name = message.split(/\s/, 1)[0].toLowerCase()
     const command = this._commandMap[name]
     if (command && isAncestor(command.context.path, meta.$path)) {
@@ -269,7 +269,7 @@ export class App extends Context {
     }
   }
 
-  private _applyMiddlewares = async (meta: Meta) => {
+  private _applyMiddlewares = async (meta: MessageMeta) => {
     // preparation
     const counter = this._middlewareCounter++
     this._middlewareSet.add(counter)
@@ -301,23 +301,25 @@ export class App extends Context {
   }
 }
 
-export type AppMetaEvent = 'message' | 'message/normal' | 'message/notice' | 'message/anonymous'
-  | 'message' | 'message/friend' | 'message/group' | 'message/discuss' | 'message/other'
-  | 'group_upload' | 'group_admin' | 'group_admin/unset' | 'group_admin/set'
-  | 'group_increase' | 'group_increase/approve' | 'group_increase/invite'
-  | 'group_decrease' | 'group_decrease/leave' | 'group_decrease/kick' | 'group_decrease/kick_me'
-  | 'notice' | 'notice/friend_add' | 'request' | 'request/friend'
-  | 'request/group' | 'request/group/add' | 'request/group/invite'
-  | 'send' | 'send/group' | 'send/user' | 'send/discuss'
-
+export type MessageEvent = UserMessageEvent | GroupMessageEvent | DiscussMessageEvent
+export type NoticeEvent = UserNoticeEvent | GroupNoticeEvent
+export type RequestEvent = UserRequestEvent | GroupRequestEvent
+export type MetaEventEvent = 'meta_event' | 'meta_event/heartbeat'
+  | 'meta_event/lifecycle' | 'meta_event/lifecycle/enable' | 'meta_event/lifecycle/disable'
 export type AppEvent = 'connected'
 export type ErrorEvent = 'warning'
 
 export interface AppReceiver extends EventEmitter {
-  on (event: AppMetaEvent, listener: (meta: Meta) => any): this
+  on (event: NoticeEvent, listener: (meta: Meta<'notice'>) => any): this
+  on (event: MessageEvent, listener: (meta: Meta<'message'>) => any): this
+  on (event: RequestEvent, listener: (meta: Meta<'request'>) => any): this
+  on (event: MetaEventEvent, listener: (meta: Meta<'meta_event'>) => any): this
   on (event: ErrorEvent, listener: (error: Error) => any): this
   on (event: AppEvent, listener: (app: App) => any): this
-  once (event: AppMetaEvent, listener: (meta: Meta) => any): this
+  once (event: NoticeEvent, listener: (meta: Meta<'notice'>) => any): this
+  once (event: MessageEvent, listener: (meta: Meta<'message'>) => any): this
+  once (event: RequestEvent, listener: (meta: Meta<'request'>) => any): this
+  once (event: MetaEventEvent, listener: (meta: Meta<'meta_event'>) => any): this
   once (event: ErrorEvent, listener: (error: Error) => any): this
   once (event: AppEvent, listener: (app: App) => any): this
 }

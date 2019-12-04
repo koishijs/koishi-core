@@ -1,6 +1,6 @@
 import { Command, CommandConfig } from './command'
 import { EventEmitter } from 'events'
-import { Meta } from './meta'
+import { MessageMeta } from './meta'
 import { Sender } from './sender'
 import { App } from './app'
 import { Database } from './database'
@@ -8,7 +8,7 @@ import * as messages from './messages'
 import * as errors from './errors'
 
 export type NextFunction = (next?: NextFunction) => void | Promise<void>
-export type Middleware = (meta: Meta, next: NextFunction) => void | Promise<void>
+export type Middleware = (meta: MessageMeta, next: NextFunction) => void | Promise<void>
 
 type PluginFunction <T extends Context, U> = (ctx: T, options: U) => void
 type PluginObject <T extends Context, U> = { apply: PluginFunction<T, U> }
@@ -110,13 +110,13 @@ export class Context {
     return this.app._commandMap[name.slice(index + 1).toLowerCase()]
   }
 
-  getCommand (name: string, meta?: Meta) {
+  getCommand (name: string, meta?: MessageMeta) {
     const path = meta ? meta.$path : this.path
     const command = this._getCommandByRawName(name)
     return command && isAncestor(command.context.path, path) && command
   }
 
-  runCommand (name: string, meta: Meta, args: string[] = [], options: Record<string, any> = {}, rest = '') {
+  runCommand (name: string, meta: MessageMeta, args: string[] = [], options: Record<string, any> = {}, rest = '') {
     const command = this._getCommandByRawName(name)
     if (!command || !isAncestor(command.context.path, meta.$path)) {
       return meta.$send(messages.COMMAND_NOT_FOUND)

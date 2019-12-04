@@ -57,12 +57,17 @@ function authorize (ctx: GroupContext, { authority }: GroupOptions) {
   }
 }
 
-export type GroupEvent = 'message' | 'message/normal' | 'message/notice' | 'message/anonymous'
-  | 'group_upload' | 'group_admin' | 'group_admin/unset' | 'group_admin/set'
-  | 'group_increase' | 'group_increase/approve' | 'group_increase/invite'
+export type GroupMessageEvent = 'message' | 'message/normal' | 'message/notice' | 'message/anonymous'
+export type GroupNoticeEvent = 'group_increase' | 'group_increase/approve' | 'group_increase/invite'
   | 'group_decrease' | 'group_decrease/leave' | 'group_decrease/kick' | 'group_decrease/kick_me'
+  | 'group_upload' | 'group_admin' | 'group_admin/unset' | 'group_admin/set' | 'group_ban'
+export type GroupRequestEvent = 'request' | 'request/add' | 'request/invite'
 
 export interface GroupReceiver extends EventEmitter {
-  on (event: GroupEvent, listener: (meta: Meta) => any): this
-  once (event: GroupEvent, listener: (meta: Meta) => any): this
+  on (event: GroupNoticeEvent, listener: (meta: Meta<'notice'>) => any): this
+  on (event: GroupMessageEvent, listener: (meta: Meta<'message'>) => any): this
+  on (event: GroupRequestEvent, listener: (meta: Meta<'request'>) => any): this
+  once (event: GroupNoticeEvent, listener: (meta: Meta<'notice'>) => any): this
+  once (event: GroupMessageEvent, listener: (meta: Meta<'message'>) => any): this
+  once (event: GroupRequestEvent, listener: (meta: Meta<'request'>) => any): this
 }

@@ -13,9 +13,9 @@ export class DiscussContext extends Context {
   }
 }
 
-export type DiscussEvent = 'message'
+export type DiscussMessageEvent = 'message'
 
 export interface DiscussReceiver extends EventEmitter {
-  on (event: DiscussEvent, listener: (meta: Meta) => any): this
-  once (event: DiscussEvent, listener: (meta: Meta) => any): this
+  on (event: DiscussMessageEvent, listener: (meta: Meta) => any): this
+  once (event: DiscussMessageEvent, listener: (meta: Meta) => any): this
 }

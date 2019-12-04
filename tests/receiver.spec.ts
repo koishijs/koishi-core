@@ -1,8 +1,6 @@
-import { SERVER_URL, CLIENT_PORT, createServer, postMeta } from './utils'
+import { SERVER_URL, CLIENT_PORT, createServer, postMeta, createMeta } from './utils'
 import { createApp, App, Meta } from '../src'
 import { Server } from 'http'
-import { sleep } from 'koishi-utils'
-import * as errors from '../src/errors'
 
 let app: App
 let server: Server
@@ -20,7 +18,7 @@ beforeAll(() => {
 
   app = createApp({
     port: CLIENT_PORT,
-    sendURL: SERVER_URL,
+    sendUrl: SERVER_URL,
     selfId: 514,
   })
 
@@ -30,6 +28,86 @@ beforeAll(() => {
 afterAll(() => {
   server.close()
   app.stop()
+})
+
+describe('meta.$path', () => {
+  test('user/*/message/friend', async () => {
+    const meta = createMeta('message', 'private', 'friend', { userId: 10000 })
+    await app.server.addProperties(meta, app)
+    expect(meta.$path).toBe('/user/10000/message/friend')
+  })
+
+  test('user/*/friend_add', async () => {
+    const meta = createMeta('notice', 'friend_add', null, { userId: 10000 })
+    await app.server.addProperties(meta, app)
+    expect(meta.$path).toBe('/user/10000/friend_add')
+  })
+
+  test('user/*/request', async () => {
+    const meta = createMeta('request', 'friend', null, { userId: 10000 })
+    await app.server.addProperties(meta, app)
+    expect(meta.$path).toBe('/user/10000/request')
+  })
+
+  test('group/*/message/normal', async () => {
+    const meta = createMeta('message', 'group', 'normal', { groupId: 20000 })
+    await app.server.addProperties(meta, app)
+    expect(meta.$path).toBe('/group/20000/message/normal')
+  })
+
+  test('group/*/group_upload', async () => {
+    const meta = createMeta('notice', 'group_upload', null, { groupId: 20000 })
+    await app.server.addProperties(meta, app)
+    expect(meta.$path).toBe('/group/20000/group_upload')
+  })
+
+  test('group/*/group_admin/unset', async () => {
+    const meta = createMeta('notice', 'group_admin', 'unset', { groupId: 20000 })
+    await app.server.addProperties(meta, app)
+    expect(meta.$path).toBe('/group/20000/group_admin/unset')
+  })
+
+  test('group/*/group_decrease/kick', async () => {
+    const meta = createMeta('notice', 'group_decrease', 'kick', { groupId: 20000 })
+    await app.server.addProperties(meta, app)
+    expect(meta.$path).toBe('/group/20000/group_decrease/kick')
+  })
+
+  test('group/*/group_increase/invite', async () => {
+    const meta = createMeta('notice', 'group_increase', 'invite', { groupId: 20000 })
+    await app.server.addProperties(meta, app)
+    expect(meta.$path).toBe('/group/20000/group_increase/invite')
+  })
+
+  test('group/*/group_ban/ban', async () => {
+    const meta = createMeta('notice', 'group_ban', 'ban', { groupId: 20000 })
+    await app.server.addProperties(meta, app)
+    expect(meta.$path).toBe('/group/20000/group_ban/ban')
+  })
+
+  test('group/*/request/invite', async () => {
+    const meta = createMeta('request', 'group', 'invite', { groupId: 20000 })
+    await app.server.addProperties(meta, app)
+    expect(meta.$path).toBe('/group/20000/request/invite')
+  })
+
+  test('discuss/*/message', async () => {
+    const meta = createMeta('message', 'discuss', null, { discussId: 30000 })
+    await app.server.addProperties(meta, app)
+    expect(meta.$path).toBe('/discuss/30000/message')
+  })
+
+  test('meta_event/lifecycle/enable', async () => {
+    const meta = createMeta('meta_event', 'lifecycle', 'enable')
+    await app.server.addProperties(meta, app)
+    expect(meta.$path).toBe('/meta_event/lifecycle/enable')
+  })
+
+  test('meta_event/heartbeat', async () => {
+    const meta = createMeta('meta_event', 'heartbeat', null)
+    await app.server.addProperties(meta, app)
+    expect(meta.$path).toBe('/meta_event/heartbeat')
+  })
 })
 
 describe('receiver', () => {
@@ -77,127 +155,5 @@ describe('receiver', () => {
     mocks.slice(0, 1).forEach(func => expect(func).toBeCalledTimes(2))
     mocks.slice(1, 3).forEach(func => expect(func).toBeCalledTimes(1))
     mocks.slice(3, 11).forEach(func => expect(func).toBeCalledTimes(1))
-  })
-})
-
-describe('middleware', () => {
-  let flag: number
-
-  beforeEach(() => flag = 0)
-
-  beforeAll(() => {
-    app.users.middleware((_, next) => {
-      flag |= 1 << 1
-      return next()
-    })
-
-    app.groups.middleware(({ message }, next) => {
-      flag |= 1 << 2
-      if (message === 'foo') return
-      if (message === 'bar') return next()
-      return next(() => (flag |= 1 << 4, undefined))
-    })
-
-    app.middleware(({ message }, next) => {
-      flag |= 1 << 3
-      if (message === 'foo') return next()
-      if (message === 'bar') return
-      return next(next => (flag |= 1 << 5, next(() => (flag |= 1 << 6, undefined))))
-    })
-
-    app.premiddleware((_, next) => {
-      flag |= 1 << 0
-      return next()
-    })
-  })
-
-  test('middleware-1', async () => {
-    await postMeta({
-      ...shared,
-      messageType: 'private',
-      subType: 'friend',
-      message: 'foo',
-    })
-
-    expect(flag.toString(2).split('').reverse().join('')).toBe('1101')
-  })
-
-  test('middleware-2', async () => {
-    await postMeta({
-      ...shared,
-      messageType: 'group',
-      subType: 'normal',
-      message: 'bar',
-    })
-
-    expect(flag.toString(2).split('').reverse().join('')).toBe('1011')
-  })
-
-  test('middleware-3', async () => {
-    await postMeta({
-      ...shared,
-      messageType: 'private',
-      subType: 'friend',
-      message: 'baz',
-    })
-
-    expect(flag.toString(2).split('').reverse().join('')).toBe('1101011')
-  })
-
-  test('middleware-4', async () => {
-    await postMeta({
-      ...shared,
-      messageType: 'group',
-      subType: 'normal',
-      message: 'baz',
-    })
-
-    expect(flag.toString(2).split('').reverse().join('')).toBe('10111')
-  })
-})
-
-describe('runtime checks', () => {
-  let fn: jest.Mock
-
-  beforeEach(() => {
-    fn = jest.fn()
-    // @ts-ignore
-    app._middlewares = [['/', app._preprocess]]
-    app.receiver.on('warning', error => fn(error.message))
-  })
-
-  test('premiddleware interception', async () => {
-    app.premiddleware((meta, next) => {})
-
-    await postMeta({
-      ...shared,
-      messageType: 'group',
-      subType: 'normal',
-      message: 'foo',
-    })
-
-    expect(fn).toBeCalledWith(errors.PREMIDDLEWARE_INTERCEPTION)
-  })
-
-  test('isolated next function', async () => {
-    app.middleware(async (_, next) => {
-      next()
-    })
-
-    app.middleware(async (_, next) => {
-      await sleep(0)
-      next()
-    })
-
-    await postMeta({
-      ...shared,
-      messageType: 'group',
-      subType: 'normal',
-      message: 'bar',
-    })
-
-    await sleep(0)
-
-    expect(fn).toBeCalledWith(errors.ISOLATED_NEXT)
   })
 })

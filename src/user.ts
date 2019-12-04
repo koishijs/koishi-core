@@ -13,9 +13,15 @@ export class UserContext extends Context {
   }
 }
 
-export type UserEvent = 'message' | 'message/friend' | 'message/group' | 'message/discuss' | 'message/other'
+export type UserMessageEvent = 'message' | 'message/friend' | 'message/group' | 'message/discuss' | 'message/other'
+export type UserNoticeEvent = 'friend_add'
+export type UserRequestEvent = 'request'
 
 export interface UserReceiver extends EventEmitter {
-  on (event: UserEvent, listener: (meta: Meta) => any): this
-  once (event: UserEvent, listener: (meta: Meta) => any): this
+  on (event: UserNoticeEvent, listener: (meta: Meta<'notice'>) => any): this
+  on (event: UserMessageEvent, listener: (meta: Meta<'message'>) => any): this
+  on (event: UserRequestEvent, listener: (meta: Meta<'request'>) => any): this
+  once (event: UserNoticeEvent, listener: (meta: Meta<'notice'>) => any): this
+  once (event: UserMessageEvent, listener: (meta: Meta<'message'>) => any): this
+  once (event: UserRequestEvent, listener: (meta: Meta<'request'>) => any): this
 }

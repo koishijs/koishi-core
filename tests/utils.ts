@@ -1,8 +1,9 @@
 import express, { Express } from 'express'
 import { EventEmitter } from 'events'
 import { createHmac } from 'crypto'
-import { Meta } from '../src'
+import { Meta, PostType, MetaTypeMap, SubTypeMap } from '../src'
 import axios from 'axios'
+import { camelCase } from 'koishi-utils'
 
 const SERVER_PORT = 15700
 export const MAX_TIMEOUT = 1000
@@ -21,6 +22,13 @@ export function createServer () {
   })
 
   return app.listen(SERVER_PORT)
+}
+
+export function createMeta <T extends PostType> (postType: T, type: MetaTypeMap[T], subType: SubTypeMap[T], meta: Meta<T> = {}) {
+  meta.postType = postType
+  meta[camelCase(postType) + 'Type'] = type
+  meta.subType = subType
+  return meta
 }
 
 export async function postMeta (meta: Meta, port = CLIENT_PORT, secret?: string) {

@@ -2,7 +2,7 @@ import debug from 'debug'
 import axios from 'axios'
 import { EventEmitter } from 'events'
 import { snakeCase, camelCase } from 'koishi-utils'
-import { GroupMemberInfo, Status, VersionInfo, Meta, FriendInfo, GroupInfo, Credentials } from './meta'
+import { GroupMemberInfo, StatusInfo, VersionInfo, Meta, FriendInfo, GroupInfo, Credentials, AccountInfo, StrangerInfo, ListedGroupInfo } from './meta'
 
 const showSenderLog = debug('app:sender')
 
@@ -15,13 +15,14 @@ export class SenderError extends Error {
 }
 
 export type RecordFormat = 'mp3' | 'amr' | 'wma' | 'm4a' | 'spx' | 'ogg' | 'wav' | 'flac'
+export type DataDirectoryType = 'image' | 'record' | 'show' | 'bface'
 
 export class Sender {
   messages = new Array(61).fill(0)
   timer: NodeJS.Timeout
   headers: Record<string, any>
 
-  constructor (protected sendURL: string, token: string, protected receiver: EventEmitter) {
+  constructor (protected sendUrl: string, token: string, protected receiver: EventEmitter) {
     this.headers = {
       Authorization: `Token ${token}`,
     }
@@ -39,7 +40,7 @@ export class Sender {
   }
 
   protected async _post (api: string, args: Record<string, any> = {}) {
-    const uri = new URL(api, this.sendURL).href
+    const uri = new URL(api, this.sendUrl).href
     showSenderLog('request %s %o', api, args)
     try {
       const { data } = await axios.get(uri, {
@@ -58,7 +59,7 @@ export class Sender {
     }
   }
 
-  async sendContextMsg (contextId: string, message: string, autoEscape?: boolean): Promise<void> {
+  async sendContextMsg (contextId: string, message: string, autoEscape?: boolean) {
     const type = contextId[0]
     const id = parseInt(contextId.slice(1))
     switch (type) {
@@ -70,12 +71,7 @@ export class Sender {
 
   async sendGroupMsg (groupId: number, message: string, autoEscape?: boolean) {
     if (!groupId || !message) return
-    const segments = message.split(/\n/g)
-    for (let index = 0; index < segments.length; index += 100) {
-      this.messages[0] += 1
-      const message = segments.slice(index, index + 100).join('\n')
-      await this._post('send_group_msg', { groupId, message, autoEscape })
-    }
+    const response = await this._post('send_group_msg', { groupId, message, autoEscape })
     const meta = {
       postType: 'message',
       messageType: 'group',
@@ -84,6 +80,7 @@ export class Sender {
     } as Meta
     this.receiver.emit('send', meta)
     this.receiver.emit('send/group', meta)
+    return response.messageId as number
   }
 
   async sendDiscussMsg (discussId: number, message: string, autoEscape?: boolean) {
@@ -98,7 +95,7 @@ export class Sender {
     } as Meta
     this.receiver.emit('send', meta)
     this.receiver.emit('send/discuss', meta)
-    return response
+    return response.messageId as number
   }
 
   async sendPrivateMsg (userId: number, message: string, autoEscape?: boolean) {
@@ -113,74 +110,74 @@ export class Sender {
     } as Meta
     this.receiver.emit('send', meta)
     this.receiver.emit('send/user', meta)
-    return response
+    return response.messageId as number
   }
 
-  deleteMsg (messageId: number) {
-    return this._post('delete_msg', { messageId })
+  async deleteMsg (messageId: number) {
+    await this._post('delete_msg', { messageId })
   }
 
-  sendLike (userId: number, times = 1) {
-    return this._post('send_like', { userId, times })
+  async sendLike (userId: number, times = 1) {
+    await this._post('send_like', { userId, times })
   }
 
-  setGroupKick (groupId: number, userId: number, rejectAddRequest = false) {
-    return this._post('set_group_kick', { groupId, userId, rejectAddRequest })
+  async setGroupKick (groupId: number, userId: number, rejectAddRequest = false) {
+    await this._post('set_group_kick', { groupId, userId, rejectAddRequest })
   }
 
-  setGroupBan (groupId: number, userId: number, duration = 36 * 60) {
-    return this._post('set_group_ban', { groupId, userId, duration })
+  async setGroupBan (groupId: number, userId: number, duration = 36 * 60) {
+    await this._post('set_group_ban', { groupId, userId, duration })
   }
 
   setGroupAnonymousBan (groupId: number, anonymous: object, duration: number): Promise<void>
   setGroupAnonymousBan (groupId: number, flag: string, duration: number): Promise<void>
-  setGroupAnonymousBan (groupId: number, meta: object | string, duration = 36 * 60) {
+  async setGroupAnonymousBan (groupId: number, meta: object | string, duration = 36 * 60) {
     const args = { groupId, duration } as any
     args[typeof meta === 'string' ? 'flag' : 'anomymous'] = meta
-    return this._post('set_group_anonymous_ban', args)
+    await this._post('set_group_anonymous_ban', args)
   }
 
-  setGroupWholeBan (groupId: number, enable: boolean) {
-    return this._post('set_group_whole_ban', { groupId, enable })
+  async setGroupWholeBan (groupId: number, enable = true) {
+    await this._post('set_group_whole_ban', { groupId, enable })
   }
 
-  setGroupAdmin (groupId: number, userId: number, enable: boolean) {
-    return this._post('set_group_admin', { groupId, userId, enable })
+  async setGroupAdmin (groupId: number, userId: number, enable: boolean) {
+    await this._post('set_group_admin', { groupId, userId, enable })
   }
 
-  setGroupAnonymous (groupId: number, enable: boolean) {
-    return this._post('set_group_anonymous', { groupId, enable })
+  async setGroupAnonymous (groupId: number, enable: boolean) {
+    await this._post('set_group_anonymous', { groupId, enable })
   }
 
-  setGroupCard (groupId: number, userId: number, card = '') {
-    return this._post('set_group_admin', { groupId, userId, card })
+  async setGroupCard (groupId: number, userId: number, card = '') {
+    await this._post('set_group_admin', { groupId, userId, card })
   }
 
-  setGroupLeave (groupId: number, isDismiss = false) {
-    return this._post('set_group_leave', { groupId, isDismiss })
+  async setGroupLeave (groupId: number, isDismiss = false) {
+    await this._post('set_group_leave', { groupId, isDismiss })
   }
 
-  setGroupSpecialTitle (groupId: number, userId: number, specialTitle = '', duration = -1) {
-    return this._post('set_group_special_title', { groupId, userId, specialTitle, duration })
+  async setGroupSpecialTitle (groupId: number, userId: number, specialTitle = '', duration = -1) {
+    await this._post('set_group_special_title', { groupId, userId, specialTitle, duration })
   }
 
-  setDiscussLeave (discussId: number) {
-    return this._post('set_discuss_leave', { discussId })
+  async setDiscussLeave (discussId: number) {
+    await this._post('set_discuss_leave', { discussId })
   }
 
-  setFriendAddRequest (flag: string, approve = true, remark = '') {
-    return this._post('set_friend_add_request', { flag, approve, remark })
+  async setFriendAddRequest (flag: string, approve = true, remark = '') {
+    await this._post('set_friend_add_request', { flag, approve, remark })
   }
 
-  setGroupAddRequest (flag: string, subType: 'add' | 'invite', approve = true, reason = '') {
-    return this._post('set_group_add_request', { flag, subType, approve, reason })
+  async setGroupAddRequest (flag: string, subType: 'add' | 'invite', approve = true, reason = '') {
+    await this._post('set_group_add_request', { flag, subType, approve, reason })
   }
 
-  getLoginInfo () {
+  getLoginInfo (): Promise<AccountInfo> {
     return this._post('get_login_info')
   }
 
-  getStrangerInfo (userId: number, noCache = false) {
+  getStrangerInfo (userId: number, noCache = false): Promise<StrangerInfo> {
     return this._post('get_stranger_info', { userId, noCache })
   }
 
@@ -188,11 +185,11 @@ export class Sender {
     return this._post('get_friend_list')
   }
 
-  getGroupList (): Promise<GroupInfo[]> {
+  getGroupList (): Promise<ListedGroupInfo[]> {
     return this._post('get_group_list')
   }
 
-  getGroupInfo (groupId: string, noCache: boolean): Promise<GroupInfo> {
+  getGroupInfo (groupId: string, noCache = false): Promise<GroupInfo> {
     return this._post('get_group_info', { groupId, noCache })
   }
 
@@ -218,23 +215,27 @@ export class Sender {
     return this._post('get_credentials')
   }
 
-  getRecord (file: string, outFormat: RecordFormat, fullPath = false) {
-    return this._post('get_record', { file, outFormat, fullPath })
+  async getRecord (file: string, outFormat: RecordFormat, fullPath = false) {
+    const response = await this._post('get_record', { file, outFormat, fullPath })
+    return response.file as string
   }
 
-  getImage (file: string) {
-    return this._post('get_image', { file })
+  async getImage (file: string) {
+    const response = await this._post('get_image', { file })
+    return response.file as string
   }
 
-  canSendImage () {
-    return this._post('can_send_image')
+  async canSendImage () {
+    const { yes } = await this._post('can_send_image')
+    return yes as boolean
   }
 
-  canSendRecord () {
-    return this._post('can_send_record')
+  async canSendRecord () {
+    const { yes } = await this._post('can_send_record')
+    return yes as boolean
   }
 
-  getStatus (): Promise<Status> {
+  getStatus (): Promise<StatusInfo> {
     return this._post('get_status')
   }
 
@@ -242,15 +243,15 @@ export class Sender {
     return this._post('get_version_info')
   }
 
-  setRestartPlugin (delay = 0) {
-    return this._post('set_restart_plugin', { delay })
+  async setRestartPlugin (delay = 0) {
+    await this._post('set_restart_plugin', { delay })
   }
 
-  cleanDataDir (dataDir: string) {
-    return this._post('clean_data_dir', { dataDir })
+  async cleanDataDir (dataDir: DataDirectoryType) {
+    await this._post('clean_data_dir', { dataDir })
   }
 
-  cleanPluginLog () {
-    return this._post('clean_plugin_log')
+  async cleanPluginLog () {
+    await this._post('clean_plugin_log')
   }
 }

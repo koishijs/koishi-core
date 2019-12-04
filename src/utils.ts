@@ -2,7 +2,7 @@ import { isInteger, getDateNumber } from 'koishi-utils'
 import { NextFunction, Middleware } from './context'
 import { UserData } from './database'
 import { Command } from './command'
-import { Meta } from './meta'
+import { MessageMeta } from './meta'
 import leven from 'leven'
 
 export type Activity = Record<number, Record<number, number>>
@@ -33,7 +33,7 @@ export function getAverageActivity (activity: Activity, date: number) {
     + getMaxActivity(activity[date - 3]) / 6
 }
 
-export function getSenderName (meta: Meta) {
+export function getSenderName (meta: MessageMeta) {
   if (meta.$user.name !== String(meta.userId)) return meta.$user.name
   return meta.messageType !== 'private' ? `[CQ:at,qq=${meta.userId}]` : meta.sender.card || meta.sender.nickname
 }
@@ -43,7 +43,7 @@ export function getUserName (user: Pick<UserData, 'id' | 'name'>) {
   return user.name === idString ? idString : user.name
 }
 
-export function getContextId (meta: Meta) {
+export function getContextId (meta: MessageMeta) {
   if (meta.messageType === 'group') {
     return 'g' + meta.groupId
   } else if (meta.messageType === 'discuss') {
@@ -67,12 +67,12 @@ export function getTargetId (target: string) {
 interface SuggestOptions {
   target: string
   items: string[]
-  meta: Meta
+  meta: MessageMeta
   next: NextFunction
   prefix: string
   postfix: string
   command: Command | ((suggestion: string) => Command)
-  execute: (suggestion: string, meta: Meta, next: NextFunction) => any
+  execute: (suggestion: string, meta: MessageMeta, next: NextFunction) => any
 }
 
 export const SIMILARITY_COEFFICIENT = 0.4
@@ -86,7 +86,7 @@ export function showSuggestions (options: SuggestOptions) {
   const suggestions = items.filter(findSimilar(target))
   if (!suggestions.length) return next()
 
-  return next(() => {
+  return next(async () => {
     let message = `${prefix}你要找的是不是${suggestions.map(name => `“${name}”`).join('或')}？`
     if (suggestions.length === 1) {
       const [suggestion] = suggestions
@@ -113,6 +113,6 @@ export function showSuggestions (options: SuggestOptions) {
       command.context.premiddleware(middleware)
       message += postfix
     }
-    return meta.$send(message)
+    await meta.$send(message)
   })
 }

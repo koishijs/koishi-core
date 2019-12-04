@@ -1,7 +1,7 @@
 import { Context, NextFunction } from './context'
 import { UserData, UserField } from './database'
 import { noop } from 'koishi-utils'
-import { Meta } from './meta'
+import { MessageMeta } from './meta'
 import { format } from 'util'
 import * as messages from './messages'
 import * as errors from './errors'
@@ -21,12 +21,12 @@ import {
 const showCommandLog = debug('app:command')
 
 export interface ParsedCommandLine extends ParsedLine {
-  meta: Meta
+  meta: MessageMeta
   command: Command
   next?: NextFunction
 }
 
-export type UserType <T> = T | ((user: UserData, meta: Meta) => T)
+export type UserType <T> = T | ((user: UserData, meta: MessageMeta) => T)
 
 export interface CommandConfig {
   /** disallow unknown options */
@@ -178,7 +178,7 @@ export class Command {
     return this
   }
 
-  getConfig <K extends keyof CommandConfig> (key: K, meta: Meta): Exclude<CommandConfig[K], (user: UserData, meta: Meta) => any> {
+  getConfig <K extends keyof CommandConfig> (key: K, meta: MessageMeta): Exclude<CommandConfig[K], (user: UserData, meta: MessageMeta) => any> {
     const value = this.config[key] as any
     return typeof value === 'function' ? value(meta.$user, meta) : value
   }
@@ -244,7 +244,7 @@ export class Command {
   }
 
   /** check authority and usage */
-  private async _checkUser (meta: Meta, options: Record<string, any>) {
+  private async _checkUser (meta: MessageMeta, options: Record<string, any>) {
     const user = meta.$user
     if (!user) return true
     let isUsage = true

@@ -1,58 +1,90 @@
 import { GroupData, User } from './database'
 
-export type MessageType = 'private' | 'group' | 'discuss'
+export type PostType = 'message' | 'notice' | 'request' | 'meta_event'
+
+export interface MetaTypeMap {
+  message: 'private' | 'group' | 'discuss'
+  notice: 'group_upload' | 'group_admin' | 'group_increase' | 'group_decrease' | 'group_ban' | 'friend_add'
+  request: 'friend' | 'group'
+  // eslint-disable-next-line camelcase
+  meta_event: 'lifecycle' | 'heartbeat'
+}
+
+export interface SubTypeMap {
+  message: 'friend' | 'group' | 'discuss' | 'other' | 'normal' | 'anonymous' | 'notice'
+  notice: 'set' | 'unset' | 'approve' | 'invite' | 'leave' | 'kick' | 'kick_me' | 'ban' | 'lift_ban'
+  request: 'add' | 'invite'
+  // eslint-disable-next-line camelcase
+  meta_event: 'enable' | 'disable'
+}
+
+export type MessageMeta = Meta<'message'>
 
 /** CQHTTP Meta Information */
-export interface Meta {
+export interface Meta <T extends PostType = PostType> {
   $path?: string
   $user?: User
   $group?: GroupData
-  $send?: (message: string) => Promise<void>
-  postType?: 'message' | 'notice' | 'request'| 'meta_event'
-  messageType?: MessageType
-  subType?: 'friend' | 'group' | 'discuss' | 'other' | 'normal' | 'anonymous' | 'notice' | 'approve' | 'invite' | 'add' | 'enable' | 'disable'
+  $send?: (message: string) => Promise<number>
+  postType?: T
+  messageType?: MetaTypeMap[T & 'message']
+  noticeType?: MetaTypeMap[T & 'notice']
+  requestType?: MetaTypeMap[T & 'request']
+  metaEventType?: MetaTypeMap[T & 'meta_event']
+  subType?: SubTypeMap[T]
   messageId?: number
   userId?: number
   selfId?: number
+  groupId?: number
+  discussId?: number
+  operatorId?: number
   message?: string
   rawMessage?: string
   font?: number
-  sender?: GroupMember
-  groupId?: number
-  anonymous?: {
-    id: number,
-    name: string,
-    flag: string,
-  }
-  discussId?: number
-  noticeType?: 'group_upload' | 'group_admin' | 'group_increase' | 'friend_add'
-  file?: {
-    id: string,
-    name: string,
-    size: number,
-    busid: number,
-  }
-  operatorId?: number
-  requestType?: 'friend' | 'group'
+  sender?: SenderInfo
+  anonymous?: AnonymousInfo
+  file?: FileInfo
   comment?: string
   flag?: string
-  metaEventType?: 'lifecycle' | 'heartbeat'
   time?: number
 }
 
-export interface GroupMember {
-  age?: number
+export interface AnonymousInfo {
+  id: number
+  name: string
+  flag: string
+}
+
+export interface FileInfo {
+  id: string
+  name: string
+  size: number
+  busid: number
+}
+
+export interface AccountInfo {
+  userId: number
+  nickname: string
+}
+
+export interface FriendInfo extends AccountInfo {
+  remark: string
+}
+
+export interface StrangerInfo extends AccountInfo {
+  sex: 'male' | 'female' | 'unknown'
+  age: number
+}
+
+export interface SenderInfo extends StrangerInfo {
   area?: string
   card?: string
   level?: string
-  nickname?: string
   role?: 'owner' | 'admin' | 'member'
-  sex?: 'male' | 'female' | 'unknown'
   title?: string
-  userId?: number
 }
 
-export interface GroupMemberInfo extends GroupMember {
+export interface GroupMemberInfo extends SenderInfo {
   cardChangeable: boolean
   groupId: number
   joinTime: number
@@ -61,25 +93,22 @@ export interface GroupMemberInfo extends GroupMember {
   unfriendly: boolean
 }
 
-export interface FriendInfo {
-  userId: number
-  nickname: string
-  remark: string
-}
-
-export interface GroupInfo {
+export interface ListedGroupInfo {
   groupId: number
   groupName: string
+}
+
+export interface GroupInfo extends ListedGroupInfo {
   memberCount: number
   maxMemberCount: number
 }
 
 export interface Credentials {
   cookies: string
-  token: number
+  csrfToken: number
 }
 
-export interface Status {
+export interface StatusInfo {
   appInitialized: boolean
   appEnabled: boolean
   pluginsGood: boolean
