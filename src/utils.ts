@@ -110,7 +110,7 @@ export function showSuggestions (options: SuggestOptions) {
           return next()
         }
       }
-      command.context.middleware(middleware, 0)
+      command.context.premiddleware(middleware)
       message += postfix
     }
     return meta.$send(message)

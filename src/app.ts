@@ -12,6 +12,7 @@ import { updateActivity, showSuggestions } from './utils'
 import { simplify } from 'koishi-utils'
 import { EventEmitter } from 'events'
 import { Meta } from './meta'
+import * as errors from './errors'
 
 export interface AppOptions {
   port?: number
@@ -22,7 +23,7 @@ export interface AppOptions {
   selfId?: number
   wsServer?: string
   database?: DatabaseConfig
-  plugins?: [Plugin<Context>, any?][]
+  plugins?: [Plugin<Context, any>, any?][]
 }
 
 const defaultOptions: AppOptions = {
@@ -83,6 +84,8 @@ export class App extends Context {
   _shortcuts: ShortcutConfig[] = []
   _shortcutMap: Record<string, Command> = {}
   _middlewares: [string, Middleware][] = []
+  _middlewareCounter = 0
+  _middlewareSet = new Set<number>()
   _contexts: Record<string, Context> = { '/': this }
   users = this._createContext('/user/')
   groups = this._createContext('/group/')
@@ -95,8 +98,8 @@ export class App extends Context {
     if (options.port) this.server = createServer(this)
     if (options.selfId) this._registerSelfId()
     this.sender = new Sender(this.options.sendURL, this.options.token, this.receiver)
-    this.receiver.on('message', meta => this._applyMiddlewares(meta))
-    this.middleware((meta, next) => this._preprocess(meta, next))
+    this.receiver.on('message', this._applyMiddlewares)
+    this.middleware(this._preprocess)
     for (const [plugin, config] of options.plugins || []) {
       this.plugin(plugin, config)
     }
@@ -148,7 +151,11 @@ export class App extends Context {
     showLog('stopped')
   }
 
-  private async _preprocess (meta: Meta, next: NextFunction) {
+  emitWarning (message: string) {
+    this.receiver.emit('warning', new Error(message))
+  }
+
+  private _preprocess = async (meta: Meta, next: NextFunction) => {
     // strip prefix
     let message = meta.message.trim()
     let prefix = ''
@@ -262,19 +269,32 @@ export class App extends Context {
     }
   }
 
-  private async _applyMiddlewares (meta: Meta) {
+  private _applyMiddlewares = async (meta: Meta) => {
+    // preparation
+    const counter = this._middlewareCounter++
+    this._middlewareSet.add(counter)
     const middlewares: Middleware[] = this._middlewares
       .filter(([path]) => isAncestor(path, meta.$path))
       .map(([_, middleware]) => middleware)
 
     // execute middlewares
-    let index = -1
-    await (async function next (fallback?: NextFunction) {
-      ++index
+    let index = 0
+    const initial = middlewares.indexOf(this._preprocess)
+    const next = async (fallback?: NextFunction) => {
+      if (!this._middlewareSet.has(counter)) {
+        return this.emitWarning(errors.ISOLATED_NEXT)
+      }
       if (fallback) middlewares.push((_, next) => fallback(next))
-      const middleware = middlewares[index]
+      const middleware = middlewares[index++]
       if (middleware) return middleware(meta, next)
-    })()
+    }
+    await next()
+
+    // update middleware set
+    this._middlewareSet.delete(counter)
+    if (index <= initial) {
+      return this.emitWarning(errors.PREMIDDLEWARE_INTERCEPTION)
+    }
 
     // flush user data
     if (meta.$user) await meta.$user._update()
@@ -291,10 +311,13 @@ export type AppMetaEvent = 'message' | 'message/normal' | 'message/notice' | 'me
   | 'send' | 'send/group' | 'send/user' | 'send/discuss'
 
 export type AppEvent = 'connected'
+export type ErrorEvent = 'warning'
 
 export interface AppReceiver extends EventEmitter {
   on (event: AppMetaEvent, listener: (meta: Meta) => any): this
+  on (event: ErrorEvent, listener: (error: Error) => any): this
   on (event: AppEvent, listener: (app: App) => any): this
   once (event: AppMetaEvent, listener: (meta: Meta) => any): this
+  once (event: ErrorEvent, listener: (error: Error) => any): this
   once (event: AppEvent, listener: (app: App) => any): this
 }

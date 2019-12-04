@@ -12,7 +12,7 @@ export type Middleware = (meta: Meta, next: NextFunction) => void | Promise<void
 
 type PluginFunction <T extends Context, U> = (ctx: T, options: U) => void
 type PluginObject <T extends Context, U> = { apply: PluginFunction<T, U> }
-export type Plugin <T extends Context, U = {}> = PluginFunction<T, U> | PluginObject<T, U>
+export type Plugin <T extends Context, U> = PluginFunction<T, U> | PluginObject<T, U>
 
 export function isAncestor (ancestor: string, path: string) {
   return path.startsWith(ancestor) || path.replace(/\d+/, '*').startsWith(ancestor)
@@ -27,9 +27,9 @@ export class Context {
 
   constructor (public path: string, public app?: App) {}
 
-  plugin <U> (plugin: PluginFunction<this, U>, options: U): this
-  plugin <U> (plugin: PluginObject<this, U>, options: U): this
-  plugin (plugin: Plugin<this>, options = {}) {
+  plugin <U> (plugin: PluginFunction<this, U>, options?: U): this
+  plugin <U> (plugin: PluginObject<this, U>, options?: U): this
+  plugin <U> (plugin: Plugin<this, U>, options: any) {
     if (options === false) return
     const app = Object.create(this)
     if (typeof plugin === 'function') {
@@ -40,8 +40,13 @@ export class Context {
     return this
   }
 
-  middleware (middleware: Middleware, index = Infinity) {
-    this.app._middlewares.splice(index, 0, [this.path, middleware])
+  middleware (middleware: Middleware) {
+    this.app._middlewares.push([this.path, middleware])
+    return this
+  }
+
+  premiddleware (middleware: Middleware) {
+    this.app._middlewares.unshift([this.path, middleware])
     return this
   }
 
@@ -53,7 +58,7 @@ export class Context {
     }
   }
 
-  private _getChildCommand (name: string, parent?: Command) {
+  private _getCommandByParent (name: string, parent?: Command) {
     let command = this.app._commandMap[name.toLowerCase()]
     if (command) {
       if (parent && command.parent !== parent) {
@@ -87,11 +92,11 @@ export class Context {
     let command: Command
     segments.forEach((name, index) => {
       if (index === segments.length - 1) name += declaration
-      if (!index) return command = this._getChildCommand(name)
+      if (!index) return command = this._getCommandByParent(name)
       if (name.charCodeAt(0) === 46) {
-        command = this._getChildCommand(command.name + name, command)
+        command = this._getCommandByParent(command.name + name, command)
       } else {
-        command = this._getChildCommand(name.slice(1), command)
+        command = this._getCommandByParent(name.slice(1), command)
       }
     })
 
@@ -99,17 +104,22 @@ export class Context {
     return command
   }
 
-  getCommand (name: string, meta?: Meta) {
+  private _getCommandByRawName (name: string) {
     name = name.split(' ', 1)[0]
+    const index = name.lastIndexOf('/')
+    return this.app._commandMap[name.slice(index + 1).toLowerCase()]
+  }
+
+  getCommand (name: string, meta?: Meta) {
     const path = meta ? meta.$path : this.path
-    const command = this.app._commandMap[name.toLowerCase()]
+    const command = this._getCommandByRawName(name)
     return command && isAncestor(command.context.path, path) && command
   }
 
   runCommand (name: string, meta: Meta, args: string[] = [], options: Record<string, any> = {}, rest = '') {
-    const command = this.app._commandMap[name.toLowerCase()]
+    const command = this._getCommandByRawName(name)
     if (!command || !isAncestor(command.context.path, meta.$path)) {
-      meta.$send(messages.COMMAND_NOT_FOUND)
+      return meta.$send(messages.COMMAND_NOT_FOUND)
     }
     return command.execute({ meta, command, args, options, rest, unknown: [] })
   }

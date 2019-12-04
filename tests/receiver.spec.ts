@@ -1,6 +1,8 @@
 import { SERVER_URL, CLIENT_PORT, createServer, postMeta } from './utils'
 import { createApp, App, Meta } from '../src'
 import { Server } from 'http'
+import { sleep } from 'koishi-utils'
+import * as errors from '../src/errors'
 
 let app: App
 let server: Server
@@ -103,13 +105,13 @@ describe('middleware', () => {
       return next(next => (flag |= 1 << 5, next(() => (flag |= 1 << 6, undefined))))
     })
 
-    app.middleware((_, next) => {
+    app.premiddleware((_, next) => {
       flag |= 1 << 0
       return next()
-    }, 0)
+    })
   })
 
-  test('middleware', async () => {
+  test('middleware-1', async () => {
     await postMeta({
       ...shared,
       messageType: 'private',
@@ -120,7 +122,7 @@ describe('middleware', () => {
     expect(flag.toString(2).split('').reverse().join('')).toBe('1101')
   })
 
-  test('middleware', async () => {
+  test('middleware-2', async () => {
     await postMeta({
       ...shared,
       messageType: 'group',
@@ -131,7 +133,7 @@ describe('middleware', () => {
     expect(flag.toString(2).split('').reverse().join('')).toBe('1011')
   })
 
-  test('middleware', async () => {
+  test('middleware-3', async () => {
     await postMeta({
       ...shared,
       messageType: 'private',
@@ -142,7 +144,7 @@ describe('middleware', () => {
     expect(flag.toString(2).split('').reverse().join('')).toBe('1101011')
   })
 
-  test('middleware', async () => {
+  test('middleware-4', async () => {
     await postMeta({
       ...shared,
       messageType: 'group',
@@ -151,5 +153,51 @@ describe('middleware', () => {
     })
 
     expect(flag.toString(2).split('').reverse().join('')).toBe('10111')
+  })
+})
+
+describe('runtime checks', () => {
+  let fn: jest.Mock
+
+  beforeEach(() => {
+    fn = jest.fn()
+    // @ts-ignore
+    app._middlewares = [['/', app._preprocess]]
+    app.receiver.on('warning', error => fn(error.message))
+  })
+
+  test('premiddleware interception', async () => {
+    app.premiddleware((meta, next) => {})
+
+    await postMeta({
+      ...shared,
+      messageType: 'group',
+      subType: 'normal',
+      message: 'foo',
+    })
+
+    expect(fn).toBeCalledWith(errors.PREMIDDLEWARE_INTERCEPTION)
+  })
+
+  test('isolated next function', async () => {
+    app.middleware(async (_, next) => {
+      next()
+    })
+
+    app.middleware(async (_, next) => {
+      await sleep(0)
+      next()
+    })
+
+    await postMeta({
+      ...shared,
+      messageType: 'group',
+      subType: 'normal',
+      message: 'bar',
+    })
+
+    await sleep(0)
+
+    expect(fn).toBeCalledWith(errors.ISOLATED_NEXT)
   })
 })
