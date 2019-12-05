@@ -1,6 +1,6 @@
 import { GroupData, User } from './database'
 
-export type PostType = 'message' | 'notice' | 'request' | 'meta_event'
+export type PostType = 'message' | 'notice' | 'request' | 'meta_event' | 'send'
 
 export interface MetaTypeMap {
   message: 'private' | 'group' | 'discuss'
@@ -8,6 +8,7 @@ export interface MetaTypeMap {
   request: 'friend' | 'group'
   // eslint-disable-next-line camelcase
   meta_event: 'lifecycle' | 'heartbeat'
+  send: 'private' | 'group' | 'discuss'
 }
 
 export interface SubTypeMap {
@@ -16,6 +17,7 @@ export interface SubTypeMap {
   request: 'add' | 'invite'
   // eslint-disable-next-line camelcase
   meta_event: 'enable' | 'disable'
+  send: never
 }
 
 export type MessageMeta = Meta<'message'>
@@ -31,6 +33,7 @@ export interface Meta <T extends PostType = PostType> {
   noticeType?: MetaTypeMap[T & 'notice']
   requestType?: MetaTypeMap[T & 'request']
   metaEventType?: MetaTypeMap[T & 'meta_event']
+  sendType?: MetaTypeMap[T & 'send']
   subType?: SubTypeMap[T]
   messageId?: number
   userId?: number

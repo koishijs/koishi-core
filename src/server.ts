@@ -9,7 +9,6 @@ import { Meta } from './meta'
 import { App } from './app'
 
 const showServerLog = debug('koishi:server')
-const showReceiverLog = debug('koishi:receiver')
 
 // @ts-ignore: @types/debug does not include the property
 showServerLog.inspectOpts.depth = 0
@@ -68,13 +67,8 @@ export class Server {
       const app = this._appMap[meta.selfId]
       res.sendStatus(200)
       showServerLog('receive %o', meta)
-
-      try {
-        await this.addProperties(meta, app)
-        this.emitEvents(meta, app)
-      } catch (error) {
-        console.error(error)
-      }
+      await app.handleMeta(meta)
+      app.emitMeta(meta)
     })
 
     this.bind(app)
@@ -86,53 +80,6 @@ export class Server {
       this._appMap[app.options.selfId] = app
     }
     return this
-  }
-
-  emitEvents (meta: Meta, app: App) {
-    for (const path in app._contexts) {
-      const context = app._contexts[path]
-      const types = context._getEventTypes(meta.$path)
-      if (types.length) showReceiverLog(path, 'emits', types.join(', '))
-      types.forEach(type => context.receiver.emit(type, meta))
-    }
-  }
-
-  async addProperties (meta: Meta, app: App) {
-    Object.defineProperty(meta, '$path', {
-      value: '/',
-      writable: true,
-    })
-    if (meta.postType === 'message') {
-      const messageType = meta.messageType === 'private' ? 'user' : meta.messageType
-      meta.$path += `${messageType}/${meta.groupId || meta.discussId || meta.userId}/message`
-    } else if (meta.postType === 'request') {
-      meta.$path += `${meta.requestType === 'friend' ? 'user' : 'group'}/${meta.groupId || meta.userId}/request`
-    } else if (meta.groupId) {
-      meta.$path += `group/${meta.groupId}/${meta.noticeType}`
-    } else if (meta.userId) {
-      meta.$path += `user/${meta.userId}/${meta.noticeType}`
-    } else {
-      meta.$path += `meta_event/${meta.metaEventType}`
-    }
-    if (meta.subType) meta.$path += '/' + meta.subType
-    showReceiverLog('path %s', meta.$path)
-
-    // add context properties
-    if (meta.postType === 'message') {
-      if (meta.messageType === 'group') {
-        if (app.database) {
-          Object.defineProperty(meta, '$group', {
-            value: await app.database.getGroup(meta.groupId),
-            writable: true,
-          })
-        }
-        meta.$send = message => app.sender.sendGroupMsg(meta.groupId, message)
-      } else if (meta.messageType === 'discuss') {
-        meta.$send = message => app.sender.sendDiscussMsg(meta.discussId, message)
-      } else {
-        meta.$send = message => app.sender.sendPrivateMsg(meta.userId, message)
-      }
-    }
   }
 
   listen (port: number) {

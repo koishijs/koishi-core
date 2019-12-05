@@ -1,18 +1,18 @@
 import { Command, CommandConfig } from './command'
 import { EventEmitter } from 'events'
-import { MessageMeta } from './meta'
+import { MessageMeta, Meta } from './meta'
 import { Sender } from './sender'
 import { App } from './app'
 import { Database } from './database'
 import * as messages from './messages'
 import * as errors from './errors'
 
-export type NextFunction = (next?: NextFunction) => void | Promise<void>
-export type Middleware = (meta: MessageMeta, next: NextFunction) => void | Promise<void>
+export type NextFunction = (next?: NextFunction) => any
+export type Middleware = (meta: MessageMeta, next: NextFunction) => any
 
 type PluginFunction <T extends Context, U> = (ctx: T, options: U) => void
-type PluginObject <T extends Context, U> = { apply: PluginFunction<T, U> }
-export type Plugin <T extends Context, U> = PluginFunction<T, U> | PluginObject<T, U>
+type PluginObject <T extends Context, U> = { name?: string, apply: PluginFunction<T, U> }
+export type Plugin <T extends Context = Context, U = any> = PluginFunction<T, U> | PluginObject<T, U>
 
 export function isAncestor (ancestor: string, path: string) {
   return path.startsWith(ancestor) || path.replace(/\d+/, '*').startsWith(ancestor)
@@ -21,6 +21,7 @@ export function isAncestor (ancestor: string, path: string) {
 export const prefixTypes = ['user', 'discuss', 'group']
 
 export class Context {
+  public id?: number
   public sender: Sender
   public database: Database
   public receiver = new EventEmitter()
@@ -36,6 +37,9 @@ export class Context {
       plugin(app, options)
     } else if (plugin && typeof plugin === 'object' && typeof plugin.apply === 'function') {
       plugin.apply(app, options)
+      if ('name' in plugin) {
+        this.app.receiver.emit('plugin', plugin.name)
+      }
     }
     return this
   }
@@ -141,4 +145,61 @@ export class Context {
       return []
     }
   }
+}
+
+type UserMessageEvent = 'message' | 'message/friend' | 'message/group' | 'message/discuss' | 'message/other'
+type GroupMessageEvent = 'message' | 'message/normal' | 'message/notice' | 'message/anonymous'
+type DiscussMessageEvent = 'message'
+type UserNoticeEvent = 'friend_add'
+type GroupNoticeEvent = 'group_increase' | 'group_increase/approve' | 'group_increase/invite'
+  | 'group_decrease' | 'group_decrease/leave' | 'group_decrease/kick' | 'group_decrease/kick_me'
+  | 'group_upload' | 'group_admin' | 'group_admin/unset' | 'group_admin/set' | 'group_ban'
+type UserRequestEvent = 'request'
+type GroupRequestEvent = 'request' | 'request/add' | 'request/invite'
+
+export type MessageEvent = UserMessageEvent | GroupMessageEvent | DiscussMessageEvent
+export type NoticeEvent = UserNoticeEvent | GroupNoticeEvent
+export type RequestEvent = UserRequestEvent | GroupRequestEvent
+export type MetaEventEvent = 'meta_event' | 'meta_event/heartbeat'
+  | 'meta_event/lifecycle' | 'meta_event/lifecycle/enable' | 'meta_event/lifecycle/disable'
+
+interface UserReceiver extends EventEmitter {
+  on (event: 'send', listener: (meta: Meta<'send'>) => any): this
+  on (event: UserNoticeEvent, listener: (meta: Meta<'notice'>) => any): this
+  on (event: UserMessageEvent, listener: (meta: Meta<'message'>) => any): this
+  on (event: UserRequestEvent, listener: (meta: Meta<'request'>) => any): this
+  once (event: 'send', listener: (meta: Meta<'send'>) => any): this
+  once (event: UserNoticeEvent, listener: (meta: Meta<'notice'>) => any): this
+  once (event: UserMessageEvent, listener: (meta: Meta<'message'>) => any): this
+  once (event: UserRequestEvent, listener: (meta: Meta<'request'>) => any): this
+}
+
+interface GroupReceiver extends EventEmitter {
+  on (event: 'send', listener: (meta: Meta<'send'>) => any): this
+  on (event: GroupNoticeEvent, listener: (meta: Meta<'notice'>) => any): this
+  on (event: GroupMessageEvent, listener: (meta: Meta<'message'>) => any): this
+  on (event: GroupRequestEvent, listener: (meta: Meta<'request'>) => any): this
+  once (event: 'send', listener: (meta: Meta<'send'>) => any): this
+  once (event: GroupNoticeEvent, listener: (meta: Meta<'notice'>) => any): this
+  once (event: GroupMessageEvent, listener: (meta: Meta<'message'>) => any): this
+  once (event: GroupRequestEvent, listener: (meta: Meta<'request'>) => any): this
+}
+
+export interface DiscussReceiver extends EventEmitter {
+  on (event: 'send', listener: (meta: Meta<'send'>) => any): this
+  on (event: DiscussMessageEvent, listener: (meta: Meta<'message'>) => any): this
+  once (event: 'send', listener: (meta: Meta<'send'>) => any): this
+  once (event: DiscussMessageEvent, listener: (meta: Meta<'message'>) => any): this
+}
+
+export interface UserContext extends Context {
+  receiver: UserReceiver
+}
+
+export interface GroupContext extends Context {
+  receiver: GroupReceiver
+}
+
+export interface DiscussContext extends Context {
+  receiver: DiscussReceiver
 }

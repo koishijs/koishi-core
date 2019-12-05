@@ -23,7 +23,7 @@ export interface UserData {
   talkativeness: Activity
 }
 
-export type User<K extends UserField = UserField> = Observed<Pick<UserData, K>>
+export type User<K extends UserField = UserField> = Observed<Pick<UserData, K | 'id'>>
 export type UserField = keyof UserData
 export const userFields: UserField[] = []
 
@@ -65,6 +65,7 @@ export enum GroupFlag {
   noEmit = 4,
 }
 
+export type Group<K extends GroupField = GroupField> = Observed<Pick<GroupData, K | 'id'>>
 export type GroupField = keyof GroupData
 export const groupFields: GroupField[] = []
 
@@ -92,7 +93,7 @@ export function createGroup (id: number, assignee: number) {
 
 export interface Database extends Subdatabases {
   // user methods
-  getUser <K extends UserField> (userId: number, defaultAuthority?: number, fields?: K[]): Promise<Pick<UserData, K>>
+  getUser <K extends UserField> (userId: number, defaultAuthority?: number, fields?: K[]): Promise<Pick<UserData, K | 'id'>>
   getUsers <K extends UserField> (ids: number[], fields?: K[]): Promise<Pick<UserData, K>[]>
   getAllUsers <K extends UserField> (fields?: K[]): Promise<Pick<UserData, K>[]>
   setUser (userId: number, data: Partial<UserData>): Promise<any>
@@ -100,10 +101,10 @@ export interface Database extends Subdatabases {
   getUserCount (): Promise<number>
 
   // group methods
-  getGroup <K extends GroupField> (groupId: number, selfId?: number, fields?: K[]): Promise<Pick<GroupData, K>>
+  getGroup <K extends GroupField> (groupId: number, selfId?: number, fields?: K[]): Promise<Pick<GroupData, K | 'id'>>
   getAllGroups <K extends GroupField> (fields?: K[], assignees?: number[]): Promise<Pick<GroupData, K>[]>
   setGroup (groupId: number, data: Partial<GroupData>): Promise<any>
-  observeGroup <K extends GroupField> (group: number | GroupData, selfId?: number, fields?: K[]): Promise<Observed<Pick<GroupData, K>>>
+  observeGroup <K extends GroupField> (group: number | GroupData, selfId?: number, fields?: K[]): Promise<Group<K>>
   getGroupCount (): Promise<number>
 }
 

@@ -1,8 +1,8 @@
 import debug from 'debug'
 import axios from 'axios'
-import { EventEmitter } from 'events'
 import { snakeCase, camelCase } from 'koishi-utils'
 import { GroupMemberInfo, StatusInfo, VersionInfo, Meta, FriendInfo, GroupInfo, Credentials, AccountInfo, StrangerInfo, ListedGroupInfo } from './meta'
+import { App } from './app'
 
 const showSenderLog = debug('app:sender')
 
@@ -22,9 +22,9 @@ export class Sender {
   timer: NodeJS.Timeout
   headers: Record<string, any>
 
-  constructor (protected sendUrl: string, token: string, protected receiver: EventEmitter) {
+  constructor (public app: App) {
     this.headers = {
-      Authorization: `Token ${token}`,
+      Authorization: `Token ${app.options.token}`,
     }
   }
 
@@ -40,7 +40,7 @@ export class Sender {
   }
 
   protected async _post (api: string, args: Record<string, any> = {}) {
-    const uri = new URL(api, this.sendUrl).href
+    const uri = new URL(api, this.app.options.sendUrl).href
     showSenderLog('request %s %o', api, args)
     try {
       const { data } = await axios.get(uri, {
@@ -72,14 +72,15 @@ export class Sender {
   async sendGroupMsg (groupId: number, message: string, autoEscape?: boolean) {
     if (!groupId || !message) return
     const response = await this._post('send_group_msg', { groupId, message, autoEscape })
-    const meta = {
-      postType: 'message',
-      messageType: 'group',
+    const meta: Meta<'send'> = {
+      $path: `/group/${groupId}/send`,
+      postType: 'send',
+      sendType: 'group',
       message,
       groupId,
-    } as Meta
-    this.receiver.emit('send', meta)
-    this.receiver.emit('send/group', meta)
+    }
+    this.app.handleMeta(meta)
+    this.app.emitMeta(meta)
     return response.messageId as number
   }
 
@@ -87,14 +88,15 @@ export class Sender {
     if (!discussId || !message) return
     this.messages[0] += 1
     const response = await this._post('send_discuss_msg', { discussId, message, autoEscape })
-    const meta = {
-      postType: 'message',
-      messageType: 'discuss',
+    const meta: Meta<'send'> = {
+      $path: `/discuss/${discussId}/send`,
+      postType: 'send',
+      sendType: 'discuss',
       message,
       discussId,
-    } as Meta
-    this.receiver.emit('send', meta)
-    this.receiver.emit('send/discuss', meta)
+    }
+    this.app.handleMeta(meta)
+    this.app.emitMeta(meta)
     return response.messageId as number
   }
 
@@ -102,14 +104,15 @@ export class Sender {
     if (!userId || !message) return
     this.messages[0] += 1
     const response = await this._post('send_private_msg', { userId, message, autoEscape })
-    const meta = {
-      postType: 'message',
-      messageType: 'private',
+    const meta: Meta<'send'> = {
+      $path: `/user/${userId}/send`,
+      postType: 'send',
+      sendType: 'private',
       message,
       userId,
-    } as Meta
-    this.receiver.emit('send', meta)
-    this.receiver.emit('send/user', meta)
+    }
+    this.app.handleMeta(meta)
+    this.app.emitMeta(meta)
     return response.messageId as number
   }
 

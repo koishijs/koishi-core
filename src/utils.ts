@@ -1,5 +1,5 @@
 import { isInteger, getDateNumber } from 'koishi-utils'
-import { NextFunction, Middleware } from './context'
+import { NextFunction, Middleware, Context } from './context'
 import { UserData } from './database'
 import { Command } from './command'
 import { MessageMeta } from './meta'
@@ -62,6 +62,12 @@ export function getTargetId (target: string) {
   }
   if (!isInteger(qq)) return
   return qq
+}
+
+export function assertContextType (ctx: Context, type: 'user' | 'group' | 'discuss') {
+  if (!ctx['id'] || !ctx.path.slice(1).startsWith(type)) {
+    throw new Error(`expect a ${type} context, received path: ${ctx.path}`)
+  }
 }
 
 interface SuggestOptions {

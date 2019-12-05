@@ -2,10 +2,7 @@ import debug from 'debug'
 import escapeRegex from 'escape-string-regexp'
 import { Server, createServer } from './server'
 import { Sender } from './sender'
-import { UserContext, UserOptions, UserMessageEvent, UserNoticeEvent, UserRequestEvent } from './user'
-import { GroupContext, GroupOptions, GroupMessageEvent, GroupNoticeEvent, GroupRequestEvent } from './group'
-import { DiscussContext, DiscussOptions, DiscussMessageEvent } from './discuss'
-import { Context, Middleware, isAncestor, NextFunction, Plugin } from './context'
+import { Context, UserContext, GroupContext, DiscussContext, Middleware, isAncestor, NextFunction, Plugin, NoticeEvent, RequestEvent, MetaEventEvent, MessageEvent } from './context'
 import { Command, ShortcutConfig, ParsedCommandLine } from './command'
 import { Database, GroupFlag, UserFlag, UserField, createDatabase, DatabaseConfig } from './database'
 import { updateActivity, showSuggestions } from './utils'
@@ -23,15 +20,11 @@ export interface AppOptions {
   selfId?: number
   wsServer?: string
   database?: DatabaseConfig
-  plugins?: [Plugin<Context, any>, any?][]
-}
-
-const defaultOptions: AppOptions = {
-  port: 8080,
-  sendUrl: 'http://127.0.0.1:5700',
 }
 
 const showLog = debug('koishi')
+const showReceiverLog = debug('koishi:receiver')
+
 export const selfIds: number[] = []
 export const apps: Record<number, App> = {}
 
@@ -74,35 +67,33 @@ export function stopAll () {
 export class App extends Context {
   app = this
   server: Server
-  options: AppOptions
   database: Database
   receiver: AppReceiver
   prefixRE: RegExp
   userPrefixRE: RegExp
+
   _commands: Command[] = []
   _commandMap: Record<string, Command> = {}
   _shortcuts: ShortcutConfig[] = []
   _shortcutMap: Record<string, Command> = {}
   _middlewares: [string, Middleware][] = []
-  _middlewareCounter = 0
-  _middlewareSet = new Set<number>()
-  _contexts: Record<string, Context> = { '/': this }
-  users = this._createContext('/user/')
-  groups = this._createContext('/group/')
-  discusses = this._createContext('/discuss/')
 
-  constructor (options: AppOptions = {}) {
+  private _middlewareCounter = 0
+  private _middlewareSet = new Set<number>()
+  private _contexts: Record<string, Context> = { '/': this }
+
+  users = this._createContext<UserContext>('/user/')
+  groups = this._createContext<GroupContext>('/group/')
+  discusses = this._createContext<DiscussContext>('/discuss/')
+
+  constructor (public options: AppOptions = {}) {
     super('/')
-    this.options = { ...defaultOptions, ...options }
     if (options.database) this.database = createDatabase(options.database)
     if (options.port) this.server = createServer(this)
     if (options.selfId) this._registerSelfId()
-    this.sender = new Sender(this.options.sendUrl, this.options.token, this.receiver)
+    this.sender = new Sender(this)
     this.receiver.on('message', this._applyMiddlewares)
     this.middleware(this._preprocess)
-    for (const [plugin, config] of options.plugins || []) {
-      this.plugin(plugin, config)
-    }
   }
 
   _registerSelfId () {
@@ -117,26 +108,27 @@ export class App extends Context {
     }
   }
 
-  private _createContext <T extends Context> (path: string, create: () => T = () => new Context(path) as T) {
+  _createContext <T extends Context> (path: string, id?: number) {
     if (!this._contexts[path]) {
-      const ctx = this._contexts[path] = create()
+      const ctx = this._contexts[path] = new Context(path, this)
       ctx.database = this.database
       ctx.sender = this.sender
       ctx.app = this
+      ctx.id = id
     }
     return this._contexts[path] as T
   }
 
-  discuss (id: number, options: DiscussOptions = {}) {
-    return this._createContext(`/discuss/${id}/`, () => new DiscussContext(id, options, this))
+  discuss (id: number) {
+    return this._createContext<DiscussContext>(`/discuss/${id}/`, id)
   }
 
-  group (id: number, options: GroupOptions = {}) {
-    return this._createContext(`/group/${id}/`, () => new GroupContext(id, options, this))
+  group (id: number) {
+    return this._createContext<GroupContext>(`/group/${id}/`, id)
   }
 
-  user (id: number, options: UserOptions = {}) {
-    return this._createContext(`/user/${id}/`, () => new UserContext(id, options, this))
+  user (id: number) {
+    return this._createContext<UserContext>(`/user/${id}/`, id)
   }
 
   start () {
@@ -155,8 +147,56 @@ export class App extends Context {
     this.receiver.emit('warning', new Error(message))
   }
 
+  async handleMeta (meta: Meta) {
+    Object.defineProperty(meta, '$path', {
+      value: '/',
+      writable: true,
+    })
+    if (meta.postType === 'message' || meta.postType === 'send') {
+      const type = meta[meta.postType + 'Type']
+      meta.$path += `${type === 'private' ? 'user' : type}/${meta.groupId || meta.discussId || meta.userId}/${meta.postType}`
+    } else if (meta.postType === 'request') {
+      meta.$path += `${meta.requestType === 'friend' ? 'user' : 'group'}/${meta.groupId || meta.userId}/request`
+    } else if (meta.groupId) {
+      meta.$path += `group/${meta.groupId}/${meta.noticeType}`
+    } else if (meta.userId) {
+      meta.$path += `user/${meta.userId}/${meta.noticeType}`
+    } else {
+      meta.$path += `meta_event/${meta.metaEventType}`
+    }
+    if (meta.subType) meta.$path += '/' + meta.subType
+    showReceiverLog('path %s', meta.$path)
+
+    // add context properties
+    if (meta.postType === 'message') {
+      if (meta.messageType === 'group') {
+        if (this.database) {
+          Object.defineProperty(meta, '$group', {
+            value: await this.database.getGroup(meta.groupId),
+            writable: true,
+          })
+        }
+        meta.$send = message => this.sender.sendGroupMsg(meta.groupId, message)
+      } else if (meta.messageType === 'discuss') {
+        meta.$send = message => this.sender.sendDiscussMsg(meta.discussId, message)
+      } else {
+        meta.$send = message => this.sender.sendPrivateMsg(meta.userId, message)
+      }
+    }
+  }
+
+  emitMeta (meta: Meta) {
+    for (const path in this._contexts) {
+      const context = this._contexts[path]
+      const types = context._getEventTypes(meta.$path)
+      if (types.length) showReceiverLog(path, 'emits', types.join(', '))
+      types.forEach(type => context.receiver.emit(type, meta))
+    }
+  }
+
   private _preprocess = async (meta: MessageMeta, next: NextFunction) => {
     // strip prefix
+    if (!meta.message) console.log(meta)
     let message = meta.message.trim()
     let prefix = ''
     if (meta.messageType === 'group') {
@@ -301,25 +341,21 @@ export class App extends Context {
   }
 }
 
-export type MessageEvent = UserMessageEvent | GroupMessageEvent | DiscussMessageEvent
-export type NoticeEvent = UserNoticeEvent | GroupNoticeEvent
-export type RequestEvent = UserRequestEvent | GroupRequestEvent
-export type MetaEventEvent = 'meta_event' | 'meta_event/heartbeat'
-  | 'meta_event/lifecycle' | 'meta_event/lifecycle/enable' | 'meta_event/lifecycle/disable'
-export type AppEvent = 'connected'
-export type ErrorEvent = 'warning'
-
 export interface AppReceiver extends EventEmitter {
   on (event: NoticeEvent, listener: (meta: Meta<'notice'>) => any): this
   on (event: MessageEvent, listener: (meta: Meta<'message'>) => any): this
   on (event: RequestEvent, listener: (meta: Meta<'request'>) => any): this
   on (event: MetaEventEvent, listener: (meta: Meta<'meta_event'>) => any): this
-  on (event: ErrorEvent, listener: (error: Error) => any): this
-  on (event: AppEvent, listener: (app: App) => any): this
+  on (event: 'send', listener: (meta: Meta<'send'>) => any): this
+  on (event: 'plugin', listener: (plugin: Plugin) => any): this
+  on (event: 'warning', listener: (error: Error) => any): this
+  on (event: 'connected', listener: (app: App) => any): this
   once (event: NoticeEvent, listener: (meta: Meta<'notice'>) => any): this
   once (event: MessageEvent, listener: (meta: Meta<'message'>) => any): this
   once (event: RequestEvent, listener: (meta: Meta<'request'>) => any): this
   once (event: MetaEventEvent, listener: (meta: Meta<'meta_event'>) => any): this
-  once (event: ErrorEvent, listener: (error: Error) => any): this
-  once (event: AppEvent, listener: (app: App) => any): this
+  once (event: 'send', listener: (meta: Meta<'send'>) => any): this
+  once (event: 'plugin', listener: (plugin: Plugin) => any): this
+  once (event: 'warning', listener: (error: Error) => any): this
+  once (event: 'connected', listener: (app: App) => any): this
 }
