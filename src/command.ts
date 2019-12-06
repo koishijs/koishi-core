@@ -47,6 +47,7 @@ export interface CommandConfig {
   maxUsageText?: string
   minInterval?: UserType<number>
   showWarning?: boolean
+  noHelpOption?: boolean
 }
 
 const defaultConfig: CommandConfig = {
@@ -73,14 +74,15 @@ export class Command {
   parent: Command = null
 
   _aliases: string[] = []
-  _action?: (this: Command, config: ParsedCommandLine, ...args: string[]) => any
   _options: CommandOption[] = []
-  _argsDef: CommandArgument[]
   _usage?: string
   _examples: string[] = []
   _shortcuts: Record<string, ShortcutConfig> = {}
-  _optsDef: Record<string, CommandOption> = {}
   _userFields = new Set<UserField>()
+
+  private _argsDef: CommandArgument[]
+  private _optsDef: Record<string, CommandOption> = {}
+  private _action?: (this: Command, config: ParsedCommandLine, ...args: string[]) => any
 
   constructor (public rawName: string, public context: Context, config: CommandConfig = {}) {
     this.name = removeBrackets(rawName)
@@ -92,8 +94,10 @@ export class Command {
     this._argsDef = parseArguments(rawName)
     this.config = { ...defaultConfig, ...config }
     this._registerAlias(this.name)
-    this.option('-h, --help', messages.SHOW_THIS_MESSAGE)
     context.app._commands.push(this)
+    if (!config.noHelpOption) {
+      this.option('-h, --help', messages.SHOW_THIS_MESSAGE)
+    }
   }
 
   private _registerAlias (name: string) {
@@ -203,10 +207,10 @@ export class Command {
 
   async execute (config: ParsedCommandLine, next: NextFunction = noop) {
     const { meta, options, args, unknown } = config
-    config.next = next
+    if (!config.next) config.next = next
 
     // show help when use `-h, --help` or when there is no action
-    if (!this._action || options.help) {
+    if (!this._action || options.help && !this.config.noHelpOption) {
       return this.context.runCommand('help', meta, [this.name])
     }
 

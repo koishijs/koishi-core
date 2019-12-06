@@ -96,6 +96,14 @@ export class App extends Context {
     this.middleware(this._preprocess)
   }
 
+  get selfId () {
+    return this.options.selfId
+  }
+
+  set selfId (value) {
+    this.options.selfId = value
+  }
+
   _registerSelfId () {
     const atMeRE = `\\[CQ:at,qq=${this.options.selfId}\\]`
     if (this.app.options.name) {
@@ -147,7 +155,7 @@ export class App extends Context {
     this.receiver.emit('warning', new Error(message))
   }
 
-  async handleMeta (meta: Meta) {
+  async dispatchMeta (meta: Meta, emitEvents = true) {
     Object.defineProperty(meta, '$path', {
       value: '/',
       writable: true,
@@ -183,9 +191,8 @@ export class App extends Context {
         meta.$send = message => this.sender.sendPrivateMsg(meta.userId, message)
       }
     }
-  }
 
-  emitMeta (meta: Meta) {
+    if (!emitEvents) return
     for (const path in this._contexts) {
       const context = this._contexts[path]
       const types = context._getEventTypes(meta.$path)
@@ -215,7 +222,7 @@ export class App extends Context {
     const canBeCommand = meta.messageType === 'private' || prefix
     const canBeShortcut = prefix !== '.'
     // parse as command
-    if (canBeCommand && (parsedArgv = this._parseCommandLine(message, meta))) {
+    if (canBeCommand && (parsedArgv = this.parseCommandLine(message, meta))) {
       fields.push(...parsedArgv.command._userFields)
     } else if (canBeShortcut) {
       // parse as shortcut
@@ -294,13 +301,13 @@ export class App extends Context {
       command: suggestion => this._commandMap[suggestion],
       execute: async (suggestion, meta, next) => {
         const newMessage = suggestion + message.slice(target.length)
-        const parsedArgv = this._parseCommandLine(newMessage, meta)
+        const parsedArgv = this.parseCommandLine(newMessage, meta)
         return parsedArgv.command.execute(parsedArgv, next)
       },
     })
   }
 
-  private _parseCommandLine (message: string, meta: MessageMeta): ParsedCommandLine {
+  parseCommandLine (message: string, meta: MessageMeta): ParsedCommandLine {
     const name = message.split(/\s/, 1)[0].toLowerCase()
     const command = this._commandMap[name]
     if (command && isAncestor(command.context.path, meta.$path)) {

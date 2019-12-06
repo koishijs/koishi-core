@@ -65,7 +65,7 @@ export function getTargetId (target: string) {
 }
 
 export function assertContextType (ctx: Context, type: 'user' | 'group' | 'discuss') {
-  if (!ctx['id'] || !ctx.path.slice(1).startsWith(type)) {
+  if (!ctx.id || !ctx.path.slice(1).startsWith(type)) {
     throw new Error(`expect a ${type} context, received path: ${ctx.path}`)
   }
 }

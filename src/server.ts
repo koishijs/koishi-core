@@ -67,8 +67,7 @@ export class Server {
       const app = this._appMap[meta.selfId]
       res.sendStatus(200)
       showServerLog('receive %o', meta)
-      await app.handleMeta(meta)
-      app.emitMeta(meta)
+      await app.dispatchMeta(meta)
     })
 
     this.bind(app)

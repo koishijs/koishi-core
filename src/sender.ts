@@ -79,8 +79,7 @@ export class Sender {
       message,
       groupId,
     }
-    this.app.handleMeta(meta)
-    this.app.emitMeta(meta)
+    await this.app.dispatchMeta(meta)
     return response.messageId as number
   }
 
@@ -95,8 +94,7 @@ export class Sender {
       message,
       discussId,
     }
-    this.app.handleMeta(meta)
-    this.app.emitMeta(meta)
+    await this.app.dispatchMeta(meta)
     return response.messageId as number
   }
 
@@ -111,8 +109,7 @@ export class Sender {
       message,
       userId,
     }
-    this.app.handleMeta(meta)
-    this.app.emitMeta(meta)
+    await this.app.dispatchMeta(meta)
     return response.messageId as number
   }
 
