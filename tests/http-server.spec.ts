@@ -11,18 +11,21 @@ beforeAll(() => {
   server = createServer()
 
   app1 = createApp({
+    type: 'http',
     port: CLIENT_PORT,
     sendUrl: SERVER_URL,
     selfId: 514,
   })
 
   app2 = createApp({
+    type: 'http',
     port: CLIENT_PORT,
     sendUrl: SERVER_URL,
     selfId: 515,
   })
 
   app3 = createApp({
+    type: 'http',
     port: CLIENT_PORT + 1,
     sendUrl: SERVER_URL,
     selfId: 516,

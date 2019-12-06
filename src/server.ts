@@ -1,76 +1,47 @@
 import WebSocket from 'ws'
-import express from 'express'
+import express, { Response } from 'express'
 import debug from 'debug'
-import { Server as HttpServer } from 'http'
+import * as http from 'http'
 import { json } from 'body-parser'
 import { createHmac } from 'crypto'
 import { camelCase } from 'koishi-utils'
 import { Meta } from './meta'
-import { App } from './app'
+import { App, AppOptions } from './app'
+import { CQResponse } from './sender'
 
 const showServerLog = debug('koishi:server')
 
 // @ts-ignore: @types/debug does not include the property
 showServerLog.inspectOpts.depth = 0
 
-const serverMap: Record<number, Server> = {}
-
-export function createServer (app: App) {
-  const { port } = app.options
-  if (port in serverMap) {
-    return serverMap[port].bind(app)
-  }
-  return serverMap[port] = new Server(app)
-}
-
-export class Server {
-  private _apps: App[] = []
+export abstract class Server {
+  protected _apps: App[] = []
   private _appMap: Record<number, App> = {}
-  private _server = express().use(json())
-  private _socket: WebSocket
-  private _httpServer: HttpServer
   private _isListening = false
 
+  protected abstract _listen (): void
+  abstract close (): void
+
   constructor (app: App) {
-    if (app.options.wsServer) {
-      this._socket = new WebSocket(app.options.wsServer + '/event', {
-        headers: {
-          Authorization: `Token ${app.options.token}`,
-        },
-      })
-
-      this._socket.on('message', (data) => {
-        console.log(data)
-      })
-    }
-
-    if (app.options.secret) {
-      this._server.use((req, res, next) => {
-        const signature = req.header('x-signature')
-        if (!signature) return res.sendStatus(401)
-        const body = JSON.stringify(req.body)
-        const sig = createHmac('sha1', app.options.secret).update(body).digest('hex')
-        if (signature !== `sha1=${sig}`) return res.sendStatus(403)
-        return next()
-      })
-    }
-
-    this._server.use(async (req, res) => {
-      const meta = camelCase(req.body) as Meta
-      if (!this._appMap[meta.selfId]) {
-        const index = this._apps.findIndex(app => !app.options.selfId)
-        if (index < 0) return res.sendStatus(403)
-        this._appMap[meta.selfId] = this._apps[index]
-        this._apps[index].options.selfId = meta.selfId
-        this._apps[index]._registerSelfId()
-      }
-      const app = this._appMap[meta.selfId]
-      res.sendStatus(200)
-      showServerLog('receive %o', meta)
-      await app.dispatchMeta(meta)
-    })
-
     this.bind(app)
+  }
+
+  protected _handleData (data: any, res?: Response) {
+    const meta = camelCase(data) as Meta
+    if (!this._appMap[meta.selfId]) {
+      const index = this._apps.findIndex(app => !app.options.selfId)
+      if (index < 0) {
+        if (res) res.sendStatus(403)
+        return
+      }
+      this._appMap[meta.selfId] = this._apps[index]
+      this._apps[index].options.selfId = meta.selfId
+      this._apps[index]._registerSelfId()
+    }
+    const app = this._appMap[meta.selfId]
+    if (res) res.sendStatus(200)
+    showServerLog('receive %o', meta)
+    app.dispatchMeta(meta)
   }
 
   bind (app: App) {
@@ -81,19 +52,122 @@ export class Server {
     return this
   }
 
-  listen (port: number) {
+  listen () {
     if (this._isListening) return
+    this._listen()
     this._isListening = true
-    this._httpServer = this._server.listen(port)
-    showServerLog('listen to port', port)
     for (const app of this._apps) {
       app.receiver.emit('connected', app)
     }
   }
+}
 
-  stop () {
-    if (!this._httpServer) return
-    this._httpServer.close()
-    showServerLog('closed')
+export class HttpServer extends Server {
+  private _express = express().use(json())
+  private _httpServer: http.Server
+
+  constructor (app: App) {
+    super(app)
+
+    if (app.options.secret) {
+      this._express.use((req, res, next) => {
+        const signature = req.header('x-signature')
+        if (!signature) return res.sendStatus(401)
+        const body = JSON.stringify(req.body)
+        const sig = createHmac('sha1', app.options.secret).update(body).digest('hex')
+        if (signature !== `sha1=${sig}`) return res.sendStatus(403)
+        return next()
+      })
+    }
+
+    this._express.use((req, res) => {
+      this._handleData(req.body, res)
+    })
   }
+
+  _listen () {
+    const { port } = this._apps[0].options
+    this._httpServer = this._express.listen(port)
+    showServerLog('listen to port', port)
+  }
+
+  close () {
+    if (this._httpServer) this._httpServer.close()
+    showServerLog('http server closed')
+  }
+}
+
+let counter = 0
+
+export class WsClient extends Server {
+  private _socket: WebSocket
+  private _listeners: Record<number, Function> = {}
+
+  constructor (app: App) {
+    super(app)
+
+    this._socket = new WebSocket(app.options.wsServer, {
+      headers: {
+        Authorization: `Bearer ${app.options.token}`,
+      },
+    })
+
+    this._socket.on('message', (data) => {
+      data = data.toString()
+      let parsed: any
+      try {
+        parsed = JSON.parse(data)
+      } catch (error) {
+        throw new Error(data)
+      }
+      if ('post_type' in parsed) {
+        this._handleData(parsed)
+      } else if (parsed.echo in this._listeners) {
+        this._listeners[parsed.echo](parsed)
+      }
+    })
+  }
+
+  send (data: any): Promise<CQResponse> {
+    data.echo = ++counter
+    return new Promise((resolve, reject) => {
+      this._listeners[counter] = resolve
+      this._socket.send(JSON.stringify(data), (error) => {
+        if (error) reject(error)
+      })
+    })
+  }
+
+  _listen () {
+    const { wsServer } = this._apps[0].options
+    showServerLog('connect to ws server:', wsServer)
+  }
+
+  close () {
+    if (this._socket) this._socket.close()
+    showServerLog('ws client closed')
+  }
+}
+
+export type ServerType = 'http' | 'ws' // 'ws-reverse'
+
+const typeMap: Record<ServerType, [keyof AppOptions, Record<keyof any, Server>, new (app: App) => Server]> = {
+  http: ['port', {}, HttpServer],
+  ws: ['wsServer', {}, WsClient],
+}
+
+export function createServer (app: App) {
+  const { type } = app.options
+  if (!typeMap[type]) {
+    throw new Error(`server type "${type}" is not supported`)
+  }
+  const [key, serverMap, Server] = typeMap[type]
+  const value = app.options[key] as any
+  if (!value) {
+    throw new Error(`missing configuration "${key}"`)
+  }
+  if (value in serverMap) {
+    return serverMap[value].bind(app)
+  }
+  return serverMap[value] = new Server(app)
 }

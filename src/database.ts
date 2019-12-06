@@ -132,6 +132,7 @@ type DatabaseInjections <K extends SubdatabaseType> = {
 }
 
 export function injectMethods <K extends SubdatabaseType> (name: K, methods: DatabaseInjections<K>) {
+  if (!subdatabases[name]) return
   Object.assign((subdatabases[name] as Subdatabase<K>)._injections, methods)
 }
 

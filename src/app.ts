@@ -1,6 +1,6 @@
 import debug from 'debug'
 import escapeRegex from 'escape-string-regexp'
-import { Server, createServer } from './server'
+import { Server, createServer, ServerType } from './server'
 import { Sender } from './sender'
 import { Context, UserContext, GroupContext, DiscussContext, Middleware, isAncestor, NextFunction, Plugin, NoticeEvent, RequestEvent, MetaEventEvent, MessageEvent } from './context'
 import { Command, ShortcutConfig, ParsedCommandLine } from './command'
@@ -20,6 +20,7 @@ export interface AppOptions {
   selfId?: number
   wsServer?: string
   database?: DatabaseConfig
+  type?: ServerType
 }
 
 const showLog = debug('koishi')
@@ -89,9 +90,11 @@ export class App extends Context {
   constructor (public options: AppOptions = {}) {
     super('/')
     if (options.database) this.database = createDatabase(options.database)
-    if (options.port) this.server = createServer(this)
     if (options.selfId) this._registerSelfId()
-    this.sender = new Sender(this)
+    if (options.type) {
+      this.server = createServer(this)
+      this.sender = new Sender(this)
+    }
     this.receiver.on('message', this._applyMiddlewares)
     this.middleware(this._preprocess)
   }
@@ -141,12 +144,12 @@ export class App extends Context {
 
   start () {
     this.sender.start()
-    this.server.listen(this.options.port)
+    this.server.listen()
     showLog('started')
   }
 
   stop () {
-    this.server.stop()
+    this.server.close()
     this.sender.stop()
     showLog('stopped')
   }

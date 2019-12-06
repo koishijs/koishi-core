@@ -18,7 +18,7 @@ import {
   ParsedLine,
 } from './parser'
 
-const showCommandLog = debug('app:command')
+const showCommandLog = debug('koishi:command')
 
 export interface ParsedCommandLine extends ParsedLine {
   meta: MessageMeta

@@ -17,6 +17,7 @@ beforeAll(() => {
   server = createServer()
 
   app = createApp({
+    type: 'http',
     port: CLIENT_PORT,
     sendUrl: SERVER_URL,
     selfId: 514,
