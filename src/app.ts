@@ -48,12 +48,13 @@ export function onStart (hook: (...app: App[]) => void) {
   onStartHooks.add(hook)
 }
 
-export function startAll () {
+export async function startAll () {
   const appList: App[] = []
-  for (const id in apps) {
-    apps[id].start()
-    appList.push(apps[id])
-  }
+  await Promise.all(Object.keys(apps).map(async (id: any) => {
+    const app = apps[id]
+    await app.start()
+    appList.push(app)
+  }))
   for (const hook of onStartHooks) {
     hook(...appList)
   }
@@ -142,9 +143,9 @@ export class App extends Context {
     return this._createContext<UserContext>(`/user/${id}/`, id)
   }
 
-  start () {
+  async start () {
     this.sender.start()
-    this.server.listen()
+    await this.server.listen()
     showLog('started')
   }
 

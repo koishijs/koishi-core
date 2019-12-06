@@ -19,7 +19,7 @@ export abstract class Server {
   private _appMap: Record<number, App> = {}
   private _isListening = false
 
-  protected abstract _listen (): void
+  protected abstract _listen (): Promise<void>
   abstract close (): void
 
   constructor (app: App) {
@@ -52,10 +52,10 @@ export abstract class Server {
     return this
   }
 
-  listen () {
+  async listen () {
     if (this._isListening) return
-    this._listen()
     this._isListening = true
+    await this._listen()
     for (const app of this._apps) {
       app.receiver.emit('connected', app)
     }
@@ -63,14 +63,14 @@ export abstract class Server {
 }
 
 export class HttpServer extends Server {
-  private _express = express().use(json())
-  private _httpServer: http.Server
+  public express = express().use(json())
+  public httpServer: http.Server
 
   constructor (app: App) {
     super(app)
 
     if (app.options.secret) {
-      this._express.use((req, res, next) => {
+      this.express.use((req, res, next) => {
         const signature = req.header('x-signature')
         if (!signature) return res.sendStatus(401)
         const body = JSON.stringify(req.body)
@@ -80,19 +80,19 @@ export class HttpServer extends Server {
       })
     }
 
-    this._express.use((req, res) => {
+    this.express.use((req, res) => {
       this._handleData(req.body, res)
     })
   }
 
-  _listen () {
+  async _listen () {
     const { port } = this._apps[0].options
-    this._httpServer = this._express.listen(port)
+    this.httpServer = this.express.listen(port)
     showServerLog('listen to port', port)
   }
 
   close () {
-    if (this._httpServer) this._httpServer.close()
+    if (this.httpServer) this.httpServer.close()
     showServerLog('http server closed')
   }
 }
@@ -100,19 +100,19 @@ export class HttpServer extends Server {
 let counter = 0
 
 export class WsClient extends Server {
-  private _socket: WebSocket
+  public socket: WebSocket
   private _listeners: Record<number, Function> = {}
 
   constructor (app: App) {
     super(app)
 
-    this._socket = new WebSocket(app.options.wsServer, {
+    this.socket = new WebSocket(app.options.wsServer, {
       headers: {
         Authorization: `Bearer ${app.options.token}`,
       },
     })
 
-    this._socket.on('message', (data) => {
+    this.socket.on('message', (data) => {
       data = data.toString()
       let parsed: any
       try {
@@ -132,19 +132,23 @@ export class WsClient extends Server {
     data.echo = ++counter
     return new Promise((resolve, reject) => {
       this._listeners[counter] = resolve
-      this._socket.send(JSON.stringify(data), (error) => {
+      this.socket.send(JSON.stringify(data), (error) => {
         if (error) reject(error)
       })
     })
   }
 
-  _listen () {
+  async _listen () {
+    await new Promise((resolve, reject) => {
+      this.socket.once('open', resolve)
+      this.socket.once('error', reject)
+    })
     const { wsServer } = this._apps[0].options
     showServerLog('connect to ws server:', wsServer)
   }
 
   close () {
-    if (this._socket) this._socket.close()
+    if (this.socket) this.socket.close()
     showServerLog('ws client closed')
   }
 }
