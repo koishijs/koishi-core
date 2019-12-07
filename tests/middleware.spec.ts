@@ -115,21 +115,8 @@ describe('runtime checks', () => {
   beforeEach(() => {
     fn = jest.fn()
     // @ts-ignore
-    app._middlewares = [['/', app._preprocess]]
+    app._middlewares = [[app, app._preprocess]]
     app.receiver.on('warning', error => fn(error.message))
-  })
-
-  test('premiddleware interception', async () => {
-    app.premiddleware((meta, next) => {})
-
-    await postMeta({
-      ...shared,
-      messageType: 'group',
-      subType: 'normal',
-      message: 'foo',
-    })
-
-    expect(fn).toBeCalledWith(errors.PREMIDDLEWARE_INTERCEPTION)
   })
 
   test('isolated next function', async () => {

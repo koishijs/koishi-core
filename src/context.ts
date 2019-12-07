@@ -14,19 +14,28 @@ type PluginFunction <T extends Context, U> = (ctx: T, options: U) => void
 type PluginObject <T extends Context, U> = { name?: string, apply: PluginFunction<T, U> }
 export type Plugin <T extends Context = Context, U = any> = PluginFunction<T, U> | PluginObject<T, U>
 
-export function isAncestor (ancestor: string, path: string) {
-  return path.startsWith(ancestor) || path.replace(/\d+/, '*').startsWith(ancestor)
-}
-
-const prefixTypes = ['user', 'discuss', 'group']
-
 export class Context {
+  public app?: App
   public id?: number
   public sender: Sender
   public database: Database
   public receiver = new EventEmitter()
 
-  constructor (public path: string, public app?: App) {}
+  constructor (private _include: string[], private _exclude: string[] = []) {}
+
+  match (path: string) {
+    for (const prefix of this._exclude) {
+      if (path.startsWith(prefix)) return
+    }
+    for (const prefix of this._include) {
+      if (path.startsWith(prefix)) return prefix
+    }
+  }
+
+  contain (context: Context) {
+    return context._include.every(prefix => this._include.some(path => prefix.startsWith(path)))
+      && this._exclude.every(prefix => context._exclude.some(path => prefix.startsWith(path)))
+  }
 
   plugin <U> (plugin: PluginFunction<this, U>, options?: U): this
   plugin <U> (plugin: PluginObject<this, U>, options?: U): this
@@ -45,17 +54,17 @@ export class Context {
   }
 
   middleware (middleware: Middleware) {
-    this.app._middlewares.push([this.path, middleware])
+    this.app._middlewares.push([this, middleware])
     return this
   }
 
   premiddleware (middleware: Middleware) {
-    this.app._middlewares.unshift([this.path, middleware])
+    this.app._middlewares.unshift([this, middleware])
     return this
   }
 
   removeMiddleware (middleware: Middleware) {
-    const index = this.app._middlewares.findIndex(([p, m]) => p === this.path && m === middleware)
+    const index = this.app._middlewares.findIndex(([c, m]) => c === this && m === middleware)
     if (index >= 0) {
       this.app._middlewares.splice(index, 1)
       return true
@@ -68,12 +77,12 @@ export class Context {
       if (parent && command.parent !== parent) {
         throw new Error(errors.WRONG_SUBCOMMAND)
       }
-      if (!isAncestor(command.context.path, this.path)) {
+      if (!command.context.contain(this)) {
         throw new Error(errors.WRONG_CONTEXT)
       }
       return command
     }
-    if (parent && !isAncestor(parent.context.path, this.path)) {
+    if (parent && !parent.context.contain(this)) {
       throw new Error(errors.WRONG_CONTEXT)
     }
     command = new Command(name, this)
@@ -114,15 +123,14 @@ export class Context {
     return this.app._commandMap[name.slice(index + 1).toLowerCase()]
   }
 
-  getCommand (name: string, meta?: MessageMeta) {
-    const path = meta ? meta.$path : this.path
+  getCommand (name: string, meta: MessageMeta) {
     const command = this._getCommandByRawName(name)
-    return command && isAncestor(command.context.path, path) && command
+    return command && command.context.match(meta.$path) && command
   }
 
   runCommand (name: string, meta: MessageMeta, args: string[] = [], options: Record<string, any> = {}, rest = '') {
     const command = this._getCommandByRawName(name)
-    if (!command || !isAncestor(command.context.path, meta.$path)) {
+    if (!command || !command.context.match(meta.$path)) {
       return meta.$send(messages.COMMAND_NOT_FOUND)
     }
     return command.execute({ meta, command, args, options, rest, unknown: [] })
@@ -130,20 +138,6 @@ export class Context {
 
   end () {
     return this.app
-  }
-
-  _getEventTypes (path: string) {
-    if (path.startsWith(this.path)) {
-      let lastEvent = ''
-      const events: string[] = []
-      for (let segment of path.slice(this.path.length).split('/')) {
-        if (!isNaN(segment as any) || prefixTypes.includes(segment)) segment = lastEvent ? '*' : ''
-        if (segment) events.push(lastEvent = lastEvent ? `${lastEvent}/${segment}` : segment)
-      }
-      return events
-    } else {
-      return []
-    }
   }
 }
 

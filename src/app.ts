@@ -2,7 +2,7 @@ import debug from 'debug'
 import escapeRegex from 'escape-string-regexp'
 import { Server, createServer, ServerType } from './server'
 import { Sender } from './sender'
-import { Context, UserContext, GroupContext, DiscussContext, Middleware, isAncestor, NextFunction, Plugin, NoticeEvent, RequestEvent, MetaEventEvent, MessageEvent } from './context'
+import { Context, UserContext, GroupContext, DiscussContext, Middleware, NextFunction, Plugin, NoticeEvent, RequestEvent, MetaEventEvent, MessageEvent } from './context'
 import { Command, ShortcutConfig, ParsedCommandLine } from './command'
 import { Database, GroupFlag, UserFlag, UserField, createDatabase, DatabaseConfig } from './database'
 import { updateActivity, showSuggestions } from './utils'
@@ -80,7 +80,7 @@ export class App extends Context {
   _commandMap: Record<string, Command> = {}
   _shortcuts: ShortcutConfig[] = []
   _shortcutMap: Record<string, Command> = {}
-  _middlewares: [string, Middleware][] = []
+  _middlewares: [Context, Middleware][] = []
 
   private _middlewareCounter = 0
   private _middlewareSet = new Set<number>()
@@ -91,9 +91,11 @@ export class App extends Context {
   discusses = this._createContext<DiscussContext>('/discuss/')
 
   constructor (public options: AppOptions = {}) {
-    super('/')
+    super(['/'])
     appList.push(this)
-    if (options.database) this.database = createDatabase(options.database)
+    if (options.database && Object.keys(options.database).length) {
+      this.database = createDatabase(options.database)
+    }
     if (options.selfId) this._registerSelfId()
     if (options.type) {
       this.server = createServer(this)
@@ -127,7 +129,7 @@ export class App extends Context {
 
   _createContext <T extends Context> (path: string, id?: number) {
     if (!this._contexts[path]) {
-      const ctx = this._contexts[path] = new Context(path, this)
+      const ctx = this._contexts[path] = new Context([path])
       ctx.database = this.database
       ctx.sender = this.sender
       ctx.app = this
@@ -165,23 +167,27 @@ export class App extends Context {
   }
 
   async dispatchMeta (meta: Meta, emitEvents = true) {
-    Object.defineProperty(meta, '$path', {
-      value: '/',
-      writable: true,
-    })
+    // calculate path
+    let prefix = '/'
+    const segments: string[] = []
     if (meta.postType === 'message' || meta.postType === 'send') {
       const type = meta[meta.postType + 'Type']
-      meta.$path += `${type === 'private' ? 'user' : type}/${meta.groupId || meta.discussId || meta.userId}/${meta.postType}`
+      prefix += `${type === 'private' ? 'user' : type}/${meta.groupId || meta.discussId || meta.userId}/`
+      segments.push(meta.postType)
     } else if (meta.postType === 'request') {
-      meta.$path += `${meta.requestType === 'friend' ? 'user' : 'group'}/${meta.groupId || meta.userId}/request`
+      prefix += `${meta.requestType === 'friend' ? 'user' : 'group'}/${meta.groupId || meta.userId}/`
+      segments.push('request')
     } else if (meta.groupId) {
-      meta.$path += `group/${meta.groupId}/${meta.noticeType}`
+      prefix += `group/${meta.groupId}/`
+      segments.push(meta.noticeType)
     } else if (meta.userId) {
-      meta.$path += `user/${meta.userId}/${meta.noticeType}`
+      prefix += `user/${meta.userId}/`
+      segments.push(meta.noticeType)
     } else {
-      meta.$path += `meta_event/${meta.metaEventType}`
+      segments.push('meta_event', meta.metaEventType)
     }
-    if (meta.subType) meta.$path += '/' + meta.subType
+    if (meta.subType) segments.push(meta.subType)
+    Object.defineProperty(meta, '$path', { value: prefix + segments.join('/') })
     showReceiverLog('path %s', meta.$path)
 
     // add context properties
@@ -201,12 +207,17 @@ export class App extends Context {
       }
     }
 
+    // emit events
     if (!emitEvents) return
     for (const path in this._contexts) {
       const context = this._contexts[path]
-      const types = context._getEventTypes(meta.$path)
-      if (types.length) showReceiverLog(path, 'emits', types.join(', '))
-      types.forEach(type => context.receiver.emit(type, meta))
+      if (!context.match(prefix)) continue
+      showReceiverLog(path, 'emits', segments)
+      let event = ''
+      segments.forEach((segment) => {
+        event += event ? `/${segment}` : segment
+        context.receiver.emit(event, meta)
+      })
     }
   }
 
@@ -319,7 +330,7 @@ export class App extends Context {
   parseCommandLine (message: string, meta: MessageMeta): ParsedCommandLine {
     const name = message.split(/\s/, 1)[0].toLowerCase()
     const command = this._commandMap[name]
-    if (command && isAncestor(command.context.path, meta.$path)) {
+    if (command && command.context.match(meta.$path)) {
       const result = command.parse(message.slice(name.length).trimStart())
       return { meta, command, ...result }
     }
@@ -330,12 +341,11 @@ export class App extends Context {
     const counter = this._middlewareCounter++
     this._middlewareSet.add(counter)
     const middlewares: Middleware[] = this._middlewares
-      .filter(([path]) => isAncestor(path, meta.$path))
+      .filter(([context]) => context.match(meta.$path))
       .map(([_, middleware]) => middleware)
 
     // execute middlewares
     let index = 0
-    const initial = middlewares.indexOf(this._preprocess)
     const next = async (fallback?: NextFunction) => {
       if (!this._middlewareSet.has(counter)) {
         return this.emitWarning(errors.ISOLATED_NEXT)
@@ -348,9 +358,6 @@ export class App extends Context {
 
     // update middleware set
     this._middlewareSet.delete(counter)
-    if (index <= initial) {
-      return this.emitWarning(errors.PREMIDDLEWARE_INTERCEPTION)
-    }
 
     // flush user data
     if (meta.$user) await meta.$user._update()
