@@ -1,8 +1,6 @@
 import WebSocket from 'ws'
-import express, { Express, Response } from 'express'
 import debug from 'debug'
 import * as http from 'http'
-import { json } from 'body-parser'
 import { createHmac } from 'crypto'
 import { camelCase } from 'koishi-utils'
 import { Meta, VersionInfo } from './meta'
@@ -27,22 +25,19 @@ export abstract class Server {
     this.bind(app)
   }
 
-  protected _handleData (data: any, res?: Response) {
+  protected _handleData (data: any) {
     const meta = camelCase(data) as Meta
     if (!this._appMap[meta.selfId]) {
       const index = this.apps.findIndex(app => !app.options.selfId)
-      if (index < 0) {
-        if (res) res.sendStatus(403)
-        return
-      }
+      if (index < 0) return
       this._appMap[meta.selfId] = this.apps[index]
       this.apps[index].options.selfId = meta.selfId
       this.apps[index]._registerSelfId()
     }
     const app = this._appMap[meta.selfId]
-    if (res) res.sendStatus(200)
     showServerLog('receive %o', meta)
     app.dispatchMeta(meta)
+    return true
   }
 
   bind (app: App) {
@@ -64,32 +59,37 @@ export abstract class Server {
 }
 
 export class HttpServer extends Server {
-  // https://github.com/microsoft/TypeScript/issues/31280
-  public express: Express = express().use(json())
   public server: http.Server
 
   constructor (app: App) {
     super(app)
 
-    if (app.options.secret) {
-      this.express.use((req, res, next) => {
-        const signature = req.header('x-signature')
-        if (!signature) return res.sendStatus(401)
-        const body = JSON.stringify(req.body)
-        const sig = createHmac('sha1', app.options.secret).update(body).digest('hex')
-        if (signature !== `sha1=${sig}`) return res.sendStatus(403)
-        return next()
+    this.server = http.createServer((req, res) => {
+      let body = ''
+      req.on('data', chunk => body += chunk)
+      req.on('end', () => {
+        if (app.options.secret) {
+          const signature = req.headers['x-signature']
+          if (!signature) {
+            res.statusCode = 401
+            return res.end()
+          }
+          const sig = createHmac('sha1', app.options.secret).update(body).digest('hex')
+          if (signature !== `sha1=${sig}`) {
+            res.statusCode = 403
+            return res.end()
+          }
+        }
+        const valid = this._handleData(JSON.parse(body))
+        res.statusCode = valid ? 200 : 403
+        res.end()
       })
-    }
-
-    this.express.use((req, res) => {
-      this._handleData(req.body, res)
     })
   }
 
   async _listen () {
     const { port } = this.apps[0].options
-    this.server = this.express.listen(port)
+    this.server.listen(port)
     if (this.apps[0].options.httpServer) {
       try {
         this.version = await this.apps[0].sender.getVersionInfo()
