@@ -1,5 +1,5 @@
 import { SERVER_URL, CLIENT_PORT, createServer, postMeta } from './utils'
-import { createApp, App, startAll, stopAll } from '../src'
+import { App, startAll, stopAll } from '../src'
 import { Server } from 'http'
 
 let app1: App, app2: App, app3: App
@@ -10,24 +10,24 @@ jest.setTimeout(1000)
 beforeAll(() => {
   server = createServer()
 
-  app1 = createApp({
+  app1 = new App({
     type: 'http',
     port: CLIENT_PORT,
-    sendUrl: SERVER_URL,
+    httpServer: SERVER_URL,
     selfId: 514,
   })
 
-  app2 = createApp({
+  app2 = new App({
     type: 'http',
     port: CLIENT_PORT,
-    sendUrl: SERVER_URL,
+    httpServer: SERVER_URL,
     selfId: 515,
   })
 
-  app3 = createApp({
+  app3 = new App({
     type: 'http',
     port: CLIENT_PORT + 1,
-    sendUrl: SERVER_URL,
+    httpServer: SERVER_URL,
     selfId: 516,
     secret: 'secret',
   })

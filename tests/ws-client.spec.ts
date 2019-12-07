@@ -1,5 +1,5 @@
 import { SERVER_PORT, SERVER_URL } from './utils'
-import { createApp, App, startAll, stopAll, Meta, WsClient } from '../src'
+import { App, startAll, stopAll, Meta, WsClient } from '../src'
 import { Server } from 'ws'
 import { snakeCase } from 'koishi-utils'
 
@@ -24,13 +24,13 @@ beforeAll(async () => {
     })
   })
 
-  app1 = createApp({
+  app1 = new App({
     type: 'ws',
     wsServer: SERVER_URL,
     selfId: 514,
   })
 
-  app2 = createApp({
+  app2 = new App({
     type: 'ws',
     wsServer: SERVER_URL,
     selfId: 515,

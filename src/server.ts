@@ -1,11 +1,11 @@
 import WebSocket from 'ws'
-import express, { Response } from 'express'
+import express, { Express, Response } from 'express'
 import debug from 'debug'
 import * as http from 'http'
 import { json } from 'body-parser'
 import { createHmac } from 'crypto'
 import { camelCase } from 'koishi-utils'
-import { Meta } from './meta'
+import { Meta, VersionInfo } from './meta'
 import { App, AppOptions } from './app'
 import { CQResponse } from './sender'
 
@@ -15,7 +15,8 @@ const showServerLog = debug('koishi:server')
 showServerLog.inspectOpts.depth = 0
 
 export abstract class Server {
-  protected _apps: App[] = []
+  public apps: App[] = []
+  public version: VersionInfo
   private _appMap: Record<number, App> = {}
   private _isListening = false
 
@@ -29,14 +30,14 @@ export abstract class Server {
   protected _handleData (data: any, res?: Response) {
     const meta = camelCase(data) as Meta
     if (!this._appMap[meta.selfId]) {
-      const index = this._apps.findIndex(app => !app.options.selfId)
+      const index = this.apps.findIndex(app => !app.options.selfId)
       if (index < 0) {
         if (res) res.sendStatus(403)
         return
       }
-      this._appMap[meta.selfId] = this._apps[index]
-      this._apps[index].options.selfId = meta.selfId
-      this._apps[index]._registerSelfId()
+      this._appMap[meta.selfId] = this.apps[index]
+      this.apps[index].options.selfId = meta.selfId
+      this.apps[index]._registerSelfId()
     }
     const app = this._appMap[meta.selfId]
     if (res) res.sendStatus(200)
@@ -45,7 +46,7 @@ export abstract class Server {
   }
 
   bind (app: App) {
-    this._apps.push(app)
+    this.apps.push(app)
     if (app.options.selfId) {
       this._appMap[app.options.selfId] = app
     }
@@ -56,15 +57,16 @@ export abstract class Server {
     if (this._isListening) return
     this._isListening = true
     await this._listen()
-    for (const app of this._apps) {
+    for (const app of this.apps) {
       app.receiver.emit('connected', app)
     }
   }
 }
 
 export class HttpServer extends Server {
-  public express = express().use(json())
-  public httpServer: http.Server
+  // https://github.com/microsoft/TypeScript/issues/31280
+  public express: Express = express().use(json())
+  public server: http.Server
 
   constructor (app: App) {
     super(app)
@@ -86,13 +88,20 @@ export class HttpServer extends Server {
   }
 
   async _listen () {
-    const { port } = this._apps[0].options
-    this.httpServer = this.express.listen(port)
+    const { port } = this.apps[0].options
+    this.server = this.express.listen(port)
+    if (this.apps[0].options.httpServer) {
+      try {
+        this.version = await this.apps[0].sender.getVersionInfo()
+      } catch (error) {
+        throw new Error('authorization failed')
+      }
+    }
     showServerLog('listen to port', port)
   }
 
   close () {
-    if (this.httpServer) this.httpServer.close()
+    if (this.server) this.server.close()
     showServerLog('http server closed')
   }
 }
@@ -101,7 +110,7 @@ let counter = 0
 
 export class WsClient extends Server {
   public socket: WebSocket
-  private _listeners: Record<number, Function> = {}
+  private _listeners: Record<number, (response: CQResponse) => void> = {}
 
   constructor (app: App) {
     super(app)
@@ -110,21 +119,6 @@ export class WsClient extends Server {
       headers: {
         Authorization: `Bearer ${app.options.token}`,
       },
-    })
-
-    this.socket.on('message', (data) => {
-      data = data.toString()
-      let parsed: any
-      try {
-        parsed = JSON.parse(data)
-      } catch (error) {
-        throw new Error(data)
-      }
-      if ('post_type' in parsed) {
-        this._handleData(parsed)
-      } else if (parsed.echo in this._listeners) {
-        this._listeners[parsed.echo](parsed)
-      }
     })
   }
 
@@ -138,13 +132,46 @@ export class WsClient extends Server {
     })
   }
 
-  async _listen () {
-    await new Promise((resolve, reject) => {
-      this.socket.once('open', resolve)
+  _listen (): Promise<void> {
+    return new Promise((resolve, reject) => {
       this.socket.once('error', reject)
+
+      this.socket.once('open', () => {
+        this.socket.send(JSON.stringify({
+          action: 'get_version_info',
+          echo: -1,
+        }), (error) => {
+          if (error) reject(error)
+        })
+
+        let resolved = false
+        this.socket.on('message', (data) => {
+          data = data.toString()
+          let parsed: any
+          try {
+            parsed = JSON.parse(data)
+          } catch (error) {
+            throw new Error(data)
+          }
+          if (!resolved) {
+            resolved = true
+            const { wsServer } = this.apps[0].options
+            showServerLog('connect to ws server:', wsServer)
+            resolve()
+          }
+          if ('post_type' in parsed) {
+            this._handleData(parsed)
+          } else {
+            if (parsed.echo === -1) {
+              this.version = camelCase(parsed.data)
+            }
+            if (parsed.echo in this._listeners) {
+              this._listeners[parsed.echo](parsed)
+            }
+          }
+        })
+      })
     })
-    const { wsServer } = this._apps[0].options
-    showServerLog('connect to ws server:', wsServer)
   }
 
   close () {
@@ -162,6 +189,9 @@ const serverTypes: Record<ServerType, [keyof AppOptions, Record<keyof any, Serve
 
 export function createServer (app: App) {
   const { type } = app.options
+  if (!type) {
+    throw new Error('missing configuration "type"')
+  }
   if (!serverTypes[type]) {
     throw new Error(`server type "${type}" is not supported`)
   }

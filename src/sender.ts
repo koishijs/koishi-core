@@ -38,7 +38,7 @@ export class Sender {
         headers.Authorization = `Token ${app.options.token}`
       }
       this._post = async (action, params = {}) => {
-        const uri = new URL(action, this.app.options.sendUrl).href
+        const uri = new URL(action, this.app.options.httpServer).href
         const { data } = await axios.get<CQResponse>(uri, { params, headers })
         return data
       }
@@ -50,18 +50,13 @@ export class Sender {
 
   private async post (action: string, params?: object) {
     showSenderLog('request %s %o', action, params)
-    try {
-      const response = await this._post(action, snakeCase(params))
-      showSenderLog('response %o', response)
-      const { data, retcode } = response
-      if (retcode === 0) {
-        return camelCase(data)
-      } else {
-        throw new SenderError(params, action, retcode)
-      }
-    } catch (error) {
-      console.error(error)
-      throw error
+    const response = await this._post(action, snakeCase(params))
+    showSenderLog('response %o', response)
+    const { data, retcode } = response
+    if (retcode === 0) {
+      return camelCase(data)
+    } else {
+      throw new SenderError(params, action, retcode)
     }
   }
 

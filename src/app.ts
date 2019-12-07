@@ -16,9 +16,9 @@ export interface AppOptions {
   name?: string
   token?: string
   secret?: string
-  sendUrl?: string
   selfId?: number
   wsServer?: string
+  httpServer?: string
   database?: DatabaseConfig
   type?: ServerType
 }
@@ -26,42 +26,46 @@ export interface AppOptions {
 const showLog = debug('koishi')
 const showReceiverLog = debug('koishi:receiver')
 
-export const selfIds: number[] = []
-export const apps: Record<number, App> = {}
-
-export function createApp (options: AppOptions = {}) {
-  const app = new App(options)
-  return app
-}
-
-export function eachApp (callback: (app: App) => any) {
-  for (const id in apps) {
-    callback(apps[id])
-  }
-}
+const selfIds: number[] = []
+export const appMap: Record<number, App> = {}
+export const appList: App[] = []
 
 const onStartHooks = new Set<(...app: App[]) => void>()
-
 export function onStart (hook: (...app: App[]) => void) {
   onStartHooks.add(hook)
 }
 
+const onStopHooks = new Set<(...app: App[]) => void>()
+export function onStop (hook: (...app: App[]) => void) {
+  onStopHooks.add(hook)
+}
+
 export async function startAll () {
-  const appList: App[] = []
-  await Promise.all(Object.keys(apps).map(async (id: any) => {
-    const app = apps[id]
-    await app.start()
-    appList.push(app)
-  }))
+  await Promise.all(appList.map(async app => app.start()))
   for (const hook of onStartHooks) {
     hook(...appList)
   }
 }
 
 export function stopAll () {
-  for (const id in apps) {
-    apps[id].stop()
+  appList.forEach(app => app.stop())
+  for (const hook of onStopHooks) {
+    hook(...appList)
   }
+}
+
+let getSelfIdsPromise: Promise<any>
+export async function getSelfIds () {
+  if (!getSelfIdsPromise) {
+    getSelfIdsPromise = Promise.all(appList.map(async (app) => {
+      if (app.selfId) return
+      const info = await app.sender.getLoginInfo()
+      app.selfId = info.userId
+      app._registerSelfId()
+    }))
+  }
+  await getSelfIdsPromise
+  return selfIds
 }
 
 export class App extends Context {
@@ -88,6 +92,7 @@ export class App extends Context {
 
   constructor (public options: AppOptions = {}) {
     super('/')
+    appList.push(this)
     if (options.database) this.database = createDatabase(options.database)
     if (options.selfId) this._registerSelfId()
     if (options.type) {
@@ -107,7 +112,7 @@ export class App extends Context {
   }
 
   _registerSelfId () {
-    apps[this.options.selfId] = this
+    appMap[this.options.selfId] = this
     selfIds.push(this.options.selfId)
     const atMeRE = `\\[CQ:at,qq=${this.options.selfId}\\]`
     if (this.app.options.name) {

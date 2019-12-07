@@ -1,5 +1,5 @@
 import { SERVER_URL, CLIENT_PORT, createServer, postMeta } from './utils'
-import { createApp, App, Meta } from '../src'
+import { App, Meta } from '../src'
 import { Server } from 'http'
 import { sleep } from 'koishi-utils'
 import * as errors from '../src/errors'
@@ -18,10 +18,10 @@ const shared: Meta = {
 beforeAll(() => {
   server = createServer()
 
-  app = createApp({
+  app = new App({
     type: 'http',
     port: CLIENT_PORT,
-    sendUrl: SERVER_URL,
+    httpServer: SERVER_URL,
     selfId: 514,
   })
 
