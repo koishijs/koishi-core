@@ -18,7 +18,7 @@ export function isAncestor (ancestor: string, path: string) {
   return path.startsWith(ancestor) || path.replace(/\d+/, '*').startsWith(ancestor)
 }
 
-export const prefixTypes = ['user', 'discuss', 'group']
+const prefixTypes = ['user', 'discuss', 'group']
 
 export class Context {
   public id?: number

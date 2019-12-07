@@ -155,17 +155,17 @@ export class WsClient extends Server {
 
 export type ServerType = 'http' | 'ws' // 'ws-reverse'
 
-const typeMap: Record<ServerType, [keyof AppOptions, Record<keyof any, Server>, new (app: App) => Server]> = {
+const serverTypes: Record<ServerType, [keyof AppOptions, Record<keyof any, Server>, new (app: App) => Server]> = {
   http: ['port', {}, HttpServer],
   ws: ['wsServer', {}, WsClient],
 }
 
 export function createServer (app: App) {
   const { type } = app.options
-  if (!typeMap[type]) {
+  if (!serverTypes[type]) {
     throw new Error(`server type "${type}" is not supported`)
   }
-  const [key, serverMap, Server] = typeMap[type]
+  const [key, serverMap, Server] = serverTypes[type]
   const value = app.options[key] as any
   if (!value) {
     throw new Error(`missing configuration "${key}"`)

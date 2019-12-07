@@ -31,8 +31,6 @@ export const apps: Record<number, App> = {}
 
 export function createApp (options: AppOptions = {}) {
   const app = new App(options)
-  apps[options.selfId] = app
-  selfIds.push(options.selfId)
   return app
 }
 
@@ -109,6 +107,8 @@ export class App extends Context {
   }
 
   _registerSelfId () {
+    apps[this.options.selfId] = this
+    selfIds.push(this.options.selfId)
     const atMeRE = `\\[CQ:at,qq=${this.options.selfId}\\]`
     if (this.app.options.name) {
       const nameRE = escapeRegex(this.app.options.name)

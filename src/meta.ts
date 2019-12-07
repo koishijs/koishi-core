@@ -79,11 +79,13 @@ export interface StrangerInfo extends AccountInfo {
   age: number
 }
 
+export type GroupRole = 'owner' | 'admin' | 'member'
+
 export interface SenderInfo extends StrangerInfo {
   area?: string
   card?: string
   level?: string
-  role?: 'owner' | 'admin' | 'member'
+  role?: GroupRole
   title?: string
 }
 
