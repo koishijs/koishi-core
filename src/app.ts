@@ -316,7 +316,7 @@ export class App extends Context {
       meta,
       next,
       prefix: '没有此命令。',
-      postfix: '发送空行以调用推测的指令。',
+      suffix: '发送空行以调用推测的指令。',
       items: Object.keys(this._commandMap),
       command: suggestion => this._commandMap[suggestion],
       execute: async (suggestion, meta, next) => {
