@@ -2,7 +2,7 @@ import { isInteger, getDateNumber } from 'koishi-utils'
 import { NextFunction, Middleware, Context } from './context'
 import { UserData } from './database'
 import { Command } from './command'
-import { MessageMeta } from './meta'
+import { MessageMeta, ContextType } from './meta'
 import leven from 'leven'
 
 export type Activity = Record<number, Record<number, number>>
@@ -64,10 +64,11 @@ export function getTargetId (target: string) {
   return qq
 }
 
-export function assertContextType (ctx: Context, type: 'user' | 'group' | 'discuss') {
-  if (!ctx.id || !ctx.path.slice(1).startsWith(type)) {
-    throw new Error(`expect a ${type} context, received path: ${ctx.path}`)
-  }
+export function assertContextType (ctx: Context, type: ContextType) {
+  // FIXME:
+  // if (!ctx.id || !ctx.path.slice(1).startsWith(type)) {
+  //   throw new Error(`expect a ${type} context, received path: ${ctx.path}`)
+  // }
 }
 
 interface SuggestOptions {
@@ -76,7 +77,7 @@ interface SuggestOptions {
   meta: MessageMeta
   next: NextFunction
   prefix: string
-  postfix: string
+  suffix: string
   command: Command | ((suggestion: string) => Command)
   execute: (suggestion: string, meta: MessageMeta, next: NextFunction) => any
 }
@@ -88,7 +89,7 @@ function findSimilar (target: string) {
 }
 
 export function showSuggestions (options: SuggestOptions) {
-  const { target, items, meta, next, prefix, postfix, execute } = options
+  const { target, items, meta, next, prefix, suffix, execute } = options
   const suggestions = items.filter(findSimilar(target))
   if (!suggestions.length) return next()
 
@@ -117,7 +118,7 @@ export function showSuggestions (options: SuggestOptions) {
         }
       }
       command.context.premiddleware(middleware)
-      message += postfix
+      message += suffix
     }
     await meta.$send(message)
   })
