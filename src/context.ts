@@ -1,5 +1,5 @@
 import { isSubset, union, intersection, complement } from 'koishi-utils'
-import { MessageMeta, Meta, contextType } from './meta'
+import { MessageMeta, Meta, contextTypes } from './meta'
 import { Command, CommandConfig } from './command'
 import { EventEmitter } from 'events'
 import { Sender } from './sender'
@@ -57,7 +57,7 @@ export class Context {
   }
 
   match (meta: Meta) {
-    const [include, exclude] = this._scope[+contextType[meta.$type]]
+    const [include, exclude] = this._scope[+contextTypes[meta.$type]]
     return include ? include.includes(meta.$subId) : !exclude.includes(meta.$subId)
   }
 

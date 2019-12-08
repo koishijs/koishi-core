@@ -196,7 +196,7 @@ export class App extends Context {
     if (meta.subType) events.unshift(events[0] + '/' + meta.subType)
 
     // generate path
-    const path = (type ? `/${type}/${subId}/` : `/`) + events[0]
+    const path = (type ? `/${type}/${subId}/` : '/') + events[0]
     Object.defineProperty(meta, '$path', { value: path })
     Object.defineProperty(meta, '$type', { value: type })
     Object.defineProperty(meta, '$subId', { value: subId })

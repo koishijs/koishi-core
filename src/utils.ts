@@ -1,8 +1,8 @@
 import { isInteger, getDateNumber } from 'koishi-utils'
-import { NextFunction, Middleware, Context } from './context'
+import { NextFunction, Middleware } from './context'
 import { UserData } from './database'
 import { Command } from './command'
-import { MessageMeta, ContextType } from './meta'
+import { MessageMeta } from './meta'
 import leven from 'leven'
 
 export type Activity = Record<number, Record<number, number>>
