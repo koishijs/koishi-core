@@ -20,7 +20,7 @@ export type ContextScope = Subscope[]
 
 export function getIdentifier (scope: ContextScope) {
   return scope.map(([include, exclude]) => {
-    return include ? include.join(',') : '-' + exclude.join(',')
+    return include ? include.sort().join(',') : '-' + exclude.sort().join(',')
   }).join(';')
 }
 
@@ -33,26 +33,26 @@ export class Context {
   constructor (private _scope: ContextScope) {}
 
   inverse () {
-    return new Context(this._scope.map(([include, exclude]) => {
+    return this.app._createContext(this._scope.map(([include, exclude]) => {
       return include ? [null, include.slice()] : [exclude.slice(), []]
     }))
   }
 
   plus (ctx: Context) {
-    return new Context(this._scope.map(([include1, exclude1], index) => {
+    return this.app._createContext(this._scope.map(([include1, exclude1], index) => {
       const [include2, exclude2] = ctx._scope[index]
       return include1
-        ? include2 ? [union(include1, include2), []] : [null, complement(exclude2, include1)]
-        : include2 ? [null, complement(exclude1, include2)] : [null, intersection(exclude1, exclude2)]
+        ? include2 ? [union(include1, include2), null] : [null, complement(exclude2, include1)]
+        : [null, include2 ? complement(exclude1, include2) : intersection(exclude1, exclude2)]
     }))
   }
 
   minus (ctx: Context) {
-    return new Context(this._scope.map(([include1, exclude1], index) => {
+    return this.app._createContext(this._scope.map(([include1, exclude1], index) => {
       const [include2, exclude2] = ctx._scope[index]
       return include1
-        ? include2 ? [complement(include1, include2), []] : [union(include1, exclude2), []]
-        : include2 ? [union(include2, exclude1), []] : [null, complement(exclude2, exclude1)]
+        ? [include2 ? complement(include1, include2) : intersection(include1, exclude2), null]
+        : include2 ? [null, union(include2, exclude1)] : [complement(exclude2, exclude1), null]
     }))
   }
 
@@ -66,7 +66,7 @@ export class Context {
       const [include2, exclude2] = ctx._scope[index]
       return include1
         ? include2 && isSubset(include2, include1)
-        : include2 || isSubset(exclude1, exclude2)
+        : include2 ? !intersection(include2, exclude1).length : isSubset(exclude1, exclude2)
     })
   }
 

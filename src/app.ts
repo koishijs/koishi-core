@@ -68,6 +68,10 @@ export async function getSelfIds () {
   return selfIds
 }
 
+export type MajorContext <T extends Context> = T & {
+  except (...ids: number[]): T
+}
+
 export class App extends Context {
   app = this
   server: Server
@@ -75,6 +79,9 @@ export class App extends Context {
   receiver: AppReceiver
   prefixRE: RegExp
   userPrefixRE: RegExp
+  users: MajorContext<UserContext>
+  groups: MajorContext<GroupContext>
+  discusses: MajorContext<DiscussContext>
 
   _commands: Command[] = []
   _commandMap: Record<string, Command> = {}
@@ -85,10 +92,6 @@ export class App extends Context {
   private _middlewareCounter = 0
   private _middlewareSet = new Set<number>()
   private _contexts: Record<string, Context> = { '-;-;-': this }
-
-  users = this._createContext<UserContext>([[null, []], [[], null], [[], null]])
-  groups = this._createContext<GroupContext>([[[], null], [null, []], [[], null]])
-  discusses = this._createContext<DiscussContext>([[[], null], [[], null], [null, []]])
 
   constructor (public options: AppOptions = {}) {
     super([[null, []], [null, []], [null, []]])
@@ -103,6 +106,12 @@ export class App extends Context {
     }
     this.receiver.on('message', this._applyMiddlewares)
     this.middleware(this._preprocess)
+    this.users = this._createContext([[null, []], [[], null], [[], null]])
+    this.groups = this._createContext([[[], null], [null, []], [[], null]])
+    this.discusses = this._createContext([[[], null], [[], null], [null, []]])
+    this.users.except = (...ids) => this._createContext([[null, ids], [[], null], [[], null]])
+    this.groups.except = (...ids) => this._createContext([[[], null], [null, ids], [[], null]])
+    this.discusses.except = (...ids) => this._createContext([[[], null], [[], null], [null, ids]])
   }
 
   get selfId () {
@@ -138,16 +147,16 @@ export class App extends Context {
     return this._contexts[identifier] as T
   }
 
-  discuss (id: number) {
-    return this._createContext<DiscussContext>([[[], null], [[], null], [[id], null]])
+  discuss (...ids: number[]) {
+    return this._createContext<DiscussContext>([[[], null], [[], null], [ids, null]])
   }
 
-  group (id: number) {
-    return this._createContext<GroupContext>([[[], null], [[id], null], [[], null]])
+  group (...ids: number[]) {
+    return this._createContext<GroupContext>([[[], null], [ids, null], [[], null]])
   }
 
-  user (id: number) {
-    return this._createContext<UserContext>([[[id], null], [[], null], [[], null]])
+  user (...ids: number[]) {
+    return this._createContext<UserContext>([[ids, null], [[], null], [[], null]])
   }
 
   async start () {
