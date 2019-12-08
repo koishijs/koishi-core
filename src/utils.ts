@@ -64,13 +64,6 @@ export function getTargetId (target: string) {
   return qq
 }
 
-export function assertContextType (ctx: Context, type: ContextType) {
-  // FIXME:
-  // if (!ctx.id || !ctx.path.slice(1).startsWith(type)) {
-  //   throw new Error(`expect a ${type} context, received path: ${ctx.path}`)
-  // }
-}
-
 interface SuggestOptions {
   target: string
   items: string[]

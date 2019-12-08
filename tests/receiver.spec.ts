@@ -151,7 +151,7 @@ describe('receiver', () => {
       messageType: 'group',
       subType: 'normal',
       message: 'World',
-      groupId: 20000,
+      groupId: 10000,
     })
 
     mocks.slice(0, 1).forEach(func => expect(func).toBeCalledTimes(2))

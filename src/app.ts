@@ -2,13 +2,13 @@ import debug from 'debug'
 import escapeRegex from 'escape-string-regexp'
 import { Server, createServer, ServerType } from './server'
 import { Sender } from './sender'
-import { Context, UserContext, GroupContext, DiscussContext, Middleware, NextFunction, Plugin, NoticeEvent, RequestEvent, MetaEventEvent, MessageEvent } from './context'
+import { Context, UserContext, GroupContext, DiscussContext, Middleware, NextFunction, Plugin, NoticeEvent, RequestEvent, MetaEventEvent, MessageEvent, ContextScope, getIdentifier } from './context'
 import { Command, ShortcutConfig, ParsedCommandLine } from './command'
 import { Database, GroupFlag, UserFlag, UserField, createDatabase, DatabaseConfig } from './database'
 import { updateActivity, showSuggestions } from './utils'
 import { simplify } from 'koishi-utils'
 import { EventEmitter } from 'events'
-import { Meta, MessageMeta } from './meta'
+import { Meta, MessageMeta, ContextType } from './meta'
 import * as errors from './errors'
 
 export interface AppOptions {
@@ -84,14 +84,14 @@ export class App extends Context {
 
   private _middlewareCounter = 0
   private _middlewareSet = new Set<number>()
-  private _contexts: Record<string, Context> = { '/': this }
+  private _contexts: Record<string, Context> = { '-;-;-': this }
 
-  users = this._createContext<UserContext>('/user/')
-  groups = this._createContext<GroupContext>('/group/')
-  discusses = this._createContext<DiscussContext>('/discuss/')
+  users = this._createContext<UserContext>([[null, []], [[], null], [[], null]])
+  groups = this._createContext<GroupContext>([[[], null], [null, []], [[], null]])
+  discusses = this._createContext<DiscussContext>([[[], null], [[], null], [null, []]])
 
   constructor (public options: AppOptions = {}) {
-    super(['/'])
+    super([[null, []], [null, []], [null, []]])
     appList.push(this)
     if (options.database && Object.keys(options.database).length) {
       this.database = createDatabase(options.database)
@@ -127,27 +127,27 @@ export class App extends Context {
     }
   }
 
-  _createContext <T extends Context> (path: string, id?: number) {
-    if (!this._contexts[path]) {
-      const ctx = this._contexts[path] = new Context([path])
+  _createContext <T extends Context> (scope: ContextScope) {
+    const identifier = getIdentifier(scope)
+    if (!this._contexts[identifier]) {
+      const ctx = this._contexts[identifier] = new Context(scope)
       ctx.database = this.database
       ctx.sender = this.sender
       ctx.app = this
-      ctx.id = id
     }
-    return this._contexts[path] as T
+    return this._contexts[identifier] as T
   }
 
   discuss (id: number) {
-    return this._createContext<DiscussContext>(`/discuss/${id}/`, id)
+    return this._createContext<DiscussContext>([[[], null], [[], null], [[id], null]])
   }
 
   group (id: number) {
-    return this._createContext<GroupContext>(`/group/${id}/`, id)
+    return this._createContext<GroupContext>([[[], null], [[id], null], [[], null]])
   }
 
   user (id: number) {
-    return this._createContext<UserContext>(`/user/${id}/`, id)
+    return this._createContext<UserContext>([[[id], null], [[], null], [[], null]])
   }
 
   async start () {
@@ -167,28 +167,40 @@ export class App extends Context {
   }
 
   async dispatchMeta (meta: Meta, emitEvents = true) {
-    // calculate path
-    let prefix = '/'
-    const segments: string[] = []
-    if (meta.postType === 'message' || meta.postType === 'send') {
-      const type = meta[meta.postType + 'Type']
-      prefix += `${type === 'private' ? 'user' : type}/${meta.groupId || meta.discussId || meta.userId}/`
-      segments.push(meta.postType)
-    } else if (meta.postType === 'request') {
-      prefix += `${meta.requestType === 'friend' ? 'user' : 'group'}/${meta.groupId || meta.userId}/`
-      segments.push('request')
-    } else if (meta.groupId) {
-      prefix += `group/${meta.groupId}/`
-      segments.push(meta.noticeType)
+    // prepare prefix
+    let type: ContextType, subId: number
+    if (meta.groupId) {
+      type = 'group'
+      subId = meta.groupId
+    } else if (meta.discussId) {
+      type = 'discuss'
+      subId = meta.discussId
     } else if (meta.userId) {
-      prefix += `user/${meta.userId}/`
-      segments.push(meta.noticeType)
-    } else {
-      segments.push('meta_event', meta.metaEventType)
+      type = 'user'
+      subId = meta.userId
     }
-    if (meta.subType) segments.push(meta.subType)
-    Object.defineProperty(meta, '$path', { value: prefix + segments.join('/') })
-    showReceiverLog('path %s', meta.$path)
+
+    // prepare events
+    const events: string[] = []
+    if (meta.postType === 'message' || meta.postType === 'send') {
+      events.push(meta.postType)
+    } else if (meta.postType === 'request') {
+      events.push('request')
+    } else if (meta.groupId) {
+      events.push(meta.noticeType)
+    } else if (meta.userId) {
+      events.push(meta.noticeType)
+    } else {
+      events.push('meta_event/' + meta.metaEventType, 'meta_event')
+    }
+    if (meta.subType) events.unshift(events[0] + '/' + meta.subType)
+
+    // generate path
+    const path = (type ? `/${type}/${subId}/` : `/`) + events[0]
+    Object.defineProperty(meta, '$path', { value: path })
+    Object.defineProperty(meta, '$type', { value: type })
+    Object.defineProperty(meta, '$subId', { value: subId })
+    showReceiverLog('path %s', path)
 
     // add context properties
     if (meta.postType === 'message') {
@@ -211,11 +223,9 @@ export class App extends Context {
     if (!emitEvents) return
     for (const path in this._contexts) {
       const context = this._contexts[path]
-      if (!context.match(prefix)) continue
-      showReceiverLog(path, 'emits', segments)
-      let event = ''
-      segments.forEach((segment) => {
-        event += event ? `/${segment}` : segment
+      if (!context.match(meta)) continue
+      showReceiverLog(path, 'emits', events)
+      events.forEach((event) => {
         context.receiver.emit(event, meta)
       })
     }
@@ -223,7 +233,6 @@ export class App extends Context {
 
   private _preprocess = async (meta: MessageMeta, next: NextFunction) => {
     // strip prefix
-    if (!meta.message) console.log(meta)
     let message = meta.message.trim()
     let prefix = ''
     if (meta.messageType === 'group') {
@@ -330,7 +339,7 @@ export class App extends Context {
   parseCommandLine (message: string, meta: MessageMeta): ParsedCommandLine {
     const name = message.split(/\s/, 1)[0].toLowerCase()
     const command = this._commandMap[name]
-    if (command && command.context.match(meta.$path)) {
+    if (command && command.context.match(meta)) {
       const result = command.parse(message.slice(name.length).trimStart())
       return { meta, command, ...result }
     }
@@ -341,7 +350,7 @@ export class App extends Context {
     const counter = this._middlewareCounter++
     this._middlewareSet.add(counter)
     const middlewares: Middleware[] = this._middlewares
-      .filter(([context]) => context.match(meta.$path))
+      .filter(([context]) => context.match(meta))
       .map(([_, middleware]) => middleware)
 
     // execute middlewares

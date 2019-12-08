@@ -81,6 +81,7 @@ describe('middleware', () => {
       messageType: 'group',
       subType: 'normal',
       message: 'bar',
+      groupId: 20000,
     })
 
     expect(flag.toString(2).split('').reverse().join('')).toBe('1011')
@@ -103,6 +104,7 @@ describe('middleware', () => {
       messageType: 'group',
       subType: 'normal',
       message: 'baz',
+      groupId: 20000,
     })
 
     expect(flag.toString(2).split('').reverse().join('')).toBe('10111')

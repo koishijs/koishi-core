@@ -21,12 +21,20 @@ export interface SubTypeMap {
 }
 
 export type MessageMeta = Meta<'message'>
+export type ContextType = keyof typeof contextType
+export enum contextType {
+  user = 0,
+  group = 1,
+  discuss = 2,
+}
 
 /** CQHTTP Meta Information */
 export interface Meta <T extends PostType = PostType> {
   $path?: string
   $user?: User
   $group?: GroupData
+  $type?: contextType
+  $subId?: number
   $send?: (message: string) => Promise<number>
   postType?: T
   messageType?: MetaTypeMap[T & 'message']

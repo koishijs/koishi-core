@@ -1,6 +1,7 @@
+import { isSubset, union, intersection, complement } from 'koishi-utils'
+import { MessageMeta, Meta, contextType } from './meta'
 import { Command, CommandConfig } from './command'
 import { EventEmitter } from 'events'
-import { MessageMeta, Meta } from './meta'
 import { Sender } from './sender'
 import { App } from './app'
 import { Database } from './database'
@@ -14,27 +15,59 @@ type PluginFunction <T extends Context, U> = (ctx: T, options: U) => void
 type PluginObject <T extends Context, U> = { name?: string, apply: PluginFunction<T, U> }
 export type Plugin <T extends Context = Context, U = any> = PluginFunction<T, U> | PluginObject<T, U>
 
+type Subscope = [number[], number[]]
+export type ContextScope = Subscope[]
+
+export function getIdentifier (scope: ContextScope) {
+  return scope.map(([include, exclude]) => {
+    return include ? include.join(',') : '-' + exclude.join(',')
+  }).join(';')
+}
+
 export class Context {
-  public app?: App
-  public id?: number
+  public app: App
   public sender: Sender
   public database: Database
   public receiver = new EventEmitter()
 
-  constructor (private _include: string[], private _exclude: string[] = []) {}
+  constructor (private _scope: ContextScope) {}
 
-  match (path: string) {
-    for (const prefix of this._exclude) {
-      if (path.startsWith(prefix)) return
-    }
-    for (const prefix of this._include) {
-      if (path.startsWith(prefix)) return prefix
-    }
+  inverse () {
+    return new Context(this._scope.map(([include, exclude]) => {
+      return include ? [null, include.slice()] : [exclude.slice(), []]
+    }))
   }
 
-  contain (context: Context) {
-    return context._include.every(prefix => this._include.some(path => prefix.startsWith(path)))
-      && this._exclude.every(prefix => context._exclude.some(path => prefix.startsWith(path)))
+  plus (ctx: Context) {
+    return new Context(this._scope.map(([include1, exclude1], index) => {
+      const [include2, exclude2] = ctx._scope[index]
+      return include1
+        ? include2 ? [union(include1, include2), []] : [null, complement(exclude2, include1)]
+        : include2 ? [null, complement(exclude1, include2)] : [null, intersection(exclude1, exclude2)]
+    }))
+  }
+
+  minus (ctx: Context) {
+    return new Context(this._scope.map(([include1, exclude1], index) => {
+      const [include2, exclude2] = ctx._scope[index]
+      return include1
+        ? include2 ? [complement(include1, include2), []] : [union(include1, exclude2), []]
+        : include2 ? [union(include2, exclude1), []] : [null, complement(exclude2, exclude1)]
+    }))
+  }
+
+  match (meta: Meta) {
+    const [include, exclude] = this._scope[+contextType[meta.$type]]
+    return include ? include.includes(meta.$subId) : !exclude.includes(meta.$subId)
+  }
+
+  contain (ctx: Context) {
+    return this._scope.every(([include1, exclude1], index) => {
+      const [include2, exclude2] = ctx._scope[index]
+      return include1
+        ? include2 && isSubset(include2, include1)
+        : include2 || isSubset(exclude1, exclude2)
+    })
   }
 
   plugin <U> (plugin: PluginFunction<this, U>, options?: U): this
@@ -125,12 +158,12 @@ export class Context {
 
   getCommand (name: string, meta: MessageMeta) {
     const command = this._getCommandByRawName(name)
-    return command && command.context.match(meta.$path) && command
+    return command && command.context.match(meta) && command
   }
 
   runCommand (name: string, meta: MessageMeta, args: string[] = [], options: Record<string, any> = {}, rest = '') {
     const command = this._getCommandByRawName(name)
-    if (!command || !command.context.match(meta.$path)) {
+    if (!command || !command.context.match(meta)) {
       return meta.$send(messages.COMMAND_NOT_FOUND)
     }
     return command.execute({ meta, command, args, options, rest, unknown: [] })
