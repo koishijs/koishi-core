@@ -1,4 +1,4 @@
-import { isSubset, union, intersection, complement } from 'koishi-utils'
+import { isSubset, union, intersection, difference } from 'koishi-utils'
 import { MessageMeta, Meta, contextTypes } from './meta'
 import { Command, CommandConfig } from './command'
 import { EventEmitter } from 'events'
@@ -17,12 +17,34 @@ export type Plugin <T extends Context = Context, U = any> = PluginFunction<T, U>
 
 type Subscope = [number[], number[]]
 export type ContextScope = Subscope[]
+type ReadonlySubscope = readonly [readonly number[], readonly number[]]
+export type ReadonlyContextScope = readonly ReadonlySubscope[]
 
-export function getIdentifier (scope: ContextScope) {
-  return scope.map(([include, exclude]) => {
-    return include ? include.sort().join(',') : '-' + exclude.sort().join(',')
-  }).join(';')
+export namespace ContextScope {
+  export function stringify (scope: ReadonlyContextScope) {
+    return scope.map(([include, exclude], index) => {
+      const type = contextTypes[index]
+      const sign = include ? '+' : '-'
+      const idList = include || exclude
+      return `${sign}${type}:${idList.join(',')}`
+    }).filter(a => a).join(';')
+  }
+
+  export function parse (identifier: string) {
+    const scope = noopScope.slice()
+    identifier.split(';').forEach((segment) => {
+      const capture = /^([+-])(user|group|discuss):(.+)$/.exec(segment)
+      if (!capture) throw new Error(errors.INVALID_IDENTIFIER)
+      const [_, sign, type, list] = capture
+      const idList = list.split(',').map(n => +n)
+      scope[contextTypes[type]] = sign === '+' ? [idList, null] : [null, idList]
+    })
+    return scope
+  }
 }
+
+const noopScope: ReadonlyContextScope = [[[], null], [[], null], [[], null]]
+const noopIdentifier = ContextScope.stringify(noopScope)
 
 export class Context {
   public app: App
@@ -30,7 +52,7 @@ export class Context {
   public database: Database
   public receiver = new EventEmitter()
 
-  constructor (private _scope: ContextScope) {}
+  constructor (public readonly identifier: string, private _scope: ReadonlyContextScope) {}
 
   inverse () {
     return this.app._createContext(this._scope.map(([include, exclude]) => {
@@ -42,8 +64,8 @@ export class Context {
     return this.app._createContext(this._scope.map(([include1, exclude1], index) => {
       const [include2, exclude2] = ctx._scope[index]
       return include1
-        ? include2 ? [union(include1, include2), null] : [null, complement(exclude2, include1)]
-        : [null, include2 ? complement(exclude1, include2) : intersection(exclude1, exclude2)]
+        ? include2 ? [union(include1, include2), null] : [null, difference(exclude2, include1)]
+        : [null, include2 ? difference(exclude1, include2) : intersection(exclude1, exclude2)]
     }))
   }
 
@@ -51,8 +73,17 @@ export class Context {
     return this.app._createContext(this._scope.map(([include1, exclude1], index) => {
       const [include2, exclude2] = ctx._scope[index]
       return include1
-        ? [include2 ? complement(include1, include2) : intersection(include1, exclude2), null]
-        : include2 ? [null, union(include2, exclude1)] : [complement(exclude2, exclude1), null]
+        ? [include2 ? difference(include1, include2) : intersection(include1, exclude2), null]
+        : include2 ? [null, union(include2, exclude1)] : [difference(exclude2, exclude1), null]
+    }))
+  }
+
+  intersect (ctx: Context) {
+    return this.app._createContext(this._scope.map(([include1, exclude1], index) => {
+      const [include2, exclude2] = ctx._scope[index]
+      return include1
+        ? [include2 ? intersection(include1, include2) : difference(include1, exclude2), null]
+        : include2 ? [difference(include2, exclude1), null] : [null, union(exclude1, exclude2)]
     }))
   }
 
@@ -104,50 +135,51 @@ export class Context {
     }
   }
 
-  private _getCommandByParent (name: string, parent?: Command) {
-    let command = this.app._commandMap[name.toLowerCase()]
-    if (command) {
-      if (parent && command.parent !== parent) {
-        throw new Error(errors.WRONG_SUBCOMMAND)
-      }
-      if (!command.context.contain(this)) {
-        throw new Error(errors.WRONG_CONTEXT)
-      }
-      return command
-    }
-    if (parent && !parent.context.contain(this)) {
-      throw new Error(errors.WRONG_CONTEXT)
-    }
-    command = new Command(name, this)
-    if (parent) {
-      command.parent = parent
-      parent.children.push(command)
-    }
-    return command
-  }
-
   command (rawName: string, config?: CommandConfig): Command
   command (rawName: string, description: string, config?: CommandConfig): Command
   command (rawName: string, ...args: [CommandConfig?] | [string, CommandConfig?]) {
     const description = typeof args[0] === 'string' ? args.shift() as string : undefined
     const config = { description, ...args[0] as CommandConfig }
+    const [path] = rawName.split(' ', 1)
+    const declaration = rawName.slice(path.length)
 
-    const [name] = rawName.split(/\s/, 1)
-    const declaration = rawName.slice(name.length)
-    const segments = name.split(/(?=[\\./])/)
-    let command: Command
-    segments.forEach((name, index) => {
-      if (index === segments.length - 1) name += declaration
-      if (!index) return command = this._getCommandByParent(name)
-      if (name.charCodeAt(0) === 46) {
-        command = this._getCommandByParent(command.name + name, command)
-      } else {
-        command = this._getCommandByParent(name.slice(1), command)
+    let parent: Command = null
+    path.toLowerCase().split(/(?=[\\./])/).forEach((segment) => {
+      const code = segment.charCodeAt(0)
+      const name = code === 46 ? parent.name + segment : code === 47 ? segment.slice(1) : segment
+      let command = this.app._commandMap[name]
+      if (command) {
+        if (parent) {
+          if (command === parent) {
+            throw new Error(errors.INVALID_SUBCOMMAND)
+          }
+          if (command.parent) {
+            if (command.parent !== parent) {
+              throw new Error(errors.INVALID_SUBCOMMAND)
+            }
+          } else if (parent.context.contain(command.context)) {
+            command.parent = parent
+            parent.children.push(command)
+          } else {
+            throw new Error(errors.INVALID_CONTEXT)
+          }
+        }
+        return parent = command
       }
+      const context = parent ? this.intersect(parent.context) : this
+      if (context.identifier === noopIdentifier) {
+        throw new Error(errors.INVALID_CONTEXT)
+      }
+      command = new Command(name, declaration, context)
+      if (parent) {
+        command.parent = parent
+        parent.children.push(command)
+      }
+      parent = command
     })
 
-    Object.assign(command.config, config)
-    return command
+    Object.assign(parent.config, config)
+    return parent
   }
 
   private _getCommandByRawName (name: string) {

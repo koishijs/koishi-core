@@ -68,7 +68,6 @@ export interface ShortcutConfig {
 }
 
 export class Command {
-  name: string
   config: CommandConfig
   children: Command[] = []
   parent: Command = null
@@ -84,14 +83,9 @@ export class Command {
   private _optsDef: Record<string, CommandOption> = {}
   private _action?: (this: Command, config: ParsedCommandLine, ...args: string[]) => any
 
-  constructor (public rawName: string, public context: Context, config: CommandConfig = {}) {
-    this.name = removeBrackets(rawName)
-    if (!this.name) {
-      throw new Error(errors.EXPECT_COMMAND_NAME)
-    } else if (!/^[\w.-]+$/.exec(this.name)) {
-      throw new Error(errors.INVALID_CHARACTER)
-    }
-    this._argsDef = parseArguments(rawName)
+  constructor (public name: string, declaration: string, public context: Context, config: CommandConfig = {}) {
+    if (!name) throw new Error(errors.EXPECT_COMMAND_NAME)
+    this._argsDef = parseArguments(declaration)
     this.config = { ...defaultConfig, ...config }
     this._registerAlias(this.name)
     context.app._commands.push(this)
@@ -125,16 +119,11 @@ export class Command {
     return this
   }
 
-  subcommand (name: string, description = '', config: CommandConfig = {}) {
-    const dotPrefixed = name.startsWith('.')
-    if (dotPrefixed) name = this.name + name
-    const [firstName] = name.split(/(?=[\s/])/, 1)
-    if (this.context.app._commandMap[firstName.toLowerCase()]) {
-      throw new Error(errors.EXISTING_SUBCOMMAND)
-    }
-    if (!dotPrefixed) name = this.name + '/' + name
-    const command = this.context.command(name, description, config)
-    return command
+  subcommand (rawName: string, config?: CommandConfig): Command
+  subcommand (rawName: string, description: string, config?: CommandConfig): Command
+  subcommand (rawName: string, ...args: [CommandConfig?] | [string, CommandConfig?]) {
+    rawName = this.name + (rawName.charCodeAt(0) === 46 ? '' : '/') + rawName
+    return this.context.command(rawName, ...args as any)
   }
 
   shortcut (name: string, config: ShortcutConfig = {}) {

@@ -1,4 +1,4 @@
-import { App, Command } from '../src'
+import { App } from '../src'
 import * as errors from '../src/errors'
 
 let app: App
@@ -31,12 +31,6 @@ describe('register commands', () => {
     expect(d1).toBe(d2)
   })
 
-  test('check names', () => {
-    expect(() => app.command('<xyz>')).toThrow(errors.EXPECT_COMMAND_NAME)
-    expect(() => app.command('xyz?123')).toThrow(errors.INVALID_CHARACTER)
-    expect(() => app.command('w/x-y.z')).not.toThrow()
-  })
-
   test('name conflicts', () => {
     expect(() => {
       app.command('e')
@@ -44,25 +38,30 @@ describe('register commands', () => {
     }).not.toThrow()
 
     expect(() => {
-      app.user(10000).command('f')
-      app.command('f')
-    }).toThrow(errors.WRONG_CONTEXT)
+      const x1 = app.command('e').alias('x')
+      const x2 = app.user(10000).command('x')
+      expect(x1).toBe(x2)
+    }).not.toThrow()
 
     expect(() => {
-      app.command('g').alias('x')
-      app.command('h').alias('x')
+      app.user(10000).command('f')
+      app.command('f')
+    }).toThrow(errors.INVALID_CONTEXT)
+
+    expect(() => {
+      app.command('g').alias('y')
+      app.command('h').alias('y')
     }).toThrow(errors.DUPLICATE_COMMAND)
   })
 })
 
-describe('register subcommands', () => {
-  beforeAll(() => app = new App())
-  let a: Command, b: Command, c: Command
+describe.only('register subcommands', () => {
+  beforeEach(() => app = new App())
 
   test('command.subcommand', () => {
-    a = app.command('a')
-    b = a.subcommand('b')
-    c = b.subcommand('.c')
+    const a = app.command('a')
+    const b = a.subcommand('b')
+    const c = b.subcommand('.c')
     expect(a.children).toMatchObject([b])
     expect(b.name).toBe('b')
     expect(b.parent).toBe(a)
@@ -72,31 +71,66 @@ describe('register subcommands', () => {
   })
 
   test('implicit subcommands', () => {
+    const a = app.command('a')
     const d = app.command('a.d')
     expect(d.name).toBe('a.d')
-    expect(d.parent.name).toBe('a')
-    expect(d.parent.parent).toBeNull()
+    expect(d.parent).toBe(a)
 
-    const e = app.command('x/e')
+    const b = app.command('b')
+    const e = app.command('b/e')
     expect(e.name).toBe('e')
-    expect(e.parent.name).toBe('x')
-    expect(e.parent.parent).toBeNull()
+    expect(e.parent).toBe(b)
 
-    const f = b.subcommand('y.f')
-    expect(f.name).toBe('y.f')
-    expect(f.parent.name).toBe('y')
-    expect(f.parent.parent.name).toBe('b')
+    const f = a.subcommand('.b/f')
+    expect(f.name).toBe('f')
+    expect(f.parent.name).toBe('a.b')
+    expect(f.parent.parent).toBe(a)
 
-    const g = a.subcommand('z/g')
-    expect(g.name).toBe('g')
-    expect(g.parent.name).toBe('z')
-    expect(g.parent.parent.name).toBe('a')
+    const g = b.subcommand('c.g')
+    expect(g.name).toBe('c.g')
+    expect(g.parent.name).toBe('c')
+    expect(g.parent.parent).toBe(b)
+
+    const h = app.command('h')
+    b.subcommand('h')
+    expect(h.name).toBe('h')
+    expect(h.parent).toBe(b)
   })
 
-  test('check existence', () => {
-    expect(() => b.subcommand('x')).toThrow(errors.EXISTING_SUBCOMMAND)
-    expect(() => app.command('e/x')).toThrow(errors.WRONG_SUBCOMMAND)
-    expect(() => a.subcommand('d/e')).toThrow(errors.WRONG_SUBCOMMAND)
-    expect(() => a.subcommand('d.e')).not.toThrow()
+  test('check subcommand', () => {
+    const a = app.command('a')
+    const b = a.subcommand('b')
+    const c = b.subcommand('c')
+    const d = app.command('d')
+
+    // register explicit subcommand
+    expect(() => a.subcommand('a')).toThrow(errors.INVALID_SUBCOMMAND)
+    expect(() => a.subcommand('b')).not.toThrow()
+    expect(() => a.subcommand('c')).toThrow(errors.INVALID_SUBCOMMAND)
+    expect(() => a.subcommand('d')).not.toThrow()
+
+    // register implicit subcommand
+    expect(() => app.command('b/c')).not.toThrow()
+    expect(() => app.command('a/c')).toThrow(errors.INVALID_SUBCOMMAND)
+    expect(() => app.command('c/b')).toThrow(errors.INVALID_SUBCOMMAND)
+    expect(() => app.command('a/d')).not.toThrow()
+  })
+
+  test('check context', () => {
+    const a = app.command('a')
+    const b = app.users.command('b')
+    const c = app.user(123).command('c')
+
+    // match command directly
+    expect(() => app.groups.command('a')).not.toThrow()
+    expect(() => app.groups.command('b')).not.toThrow()
+
+    // register explicit subcommand
+    expect(() => b.subcommand('a')).toThrow(errors.INVALID_CONTEXT)
+    expect(() => b.subcommand('c')).not.toThrow()
+
+    // register implicit subcommand
+    expect(() => app.groups.command('b/d')).toThrow(errors.INVALID_CONTEXT)
+    expect(() => app.command('b/d')).not.toThrow()
   })
 })

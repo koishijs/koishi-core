@@ -1,8 +1,7 @@
 import debug from 'debug'
 import escapeRegex from 'escape-string-regexp'
-import { Server, createServer, ServerType } from './server'
 import { Sender } from './sender'
-import { Context, UserContext, GroupContext, DiscussContext, Middleware, NextFunction, Plugin, NoticeEvent, RequestEvent, MetaEventEvent, MessageEvent, ContextScope, getIdentifier } from './context'
+import { Server, createServer, ServerType } from './server'
 import { Command, ShortcutConfig, ParsedCommandLine } from './command'
 import { Database, GroupFlag, UserFlag, UserField, createDatabase, DatabaseConfig } from './database'
 import { updateActivity, showSuggestions } from './utils'
@@ -10,6 +9,21 @@ import { simplify } from 'koishi-utils'
 import { EventEmitter } from 'events'
 import { Meta, MessageMeta, ContextType } from './meta'
 import * as errors from './errors'
+
+import {
+  Context,
+  UserContext,
+  GroupContext,
+  DiscussContext,
+  Middleware,
+  NextFunction,
+  Plugin,
+  NoticeEvent,
+  RequestEvent,
+  MetaEventEvent,
+  MessageEvent,
+  ContextScope,
+} from './context'
 
 export interface AppOptions {
   port?: number
@@ -60,7 +74,7 @@ export async function getSelfIds () {
     getSelfIdsPromise = Promise.all(appList.map(async (app) => {
       if (app.selfId) return
       const info = await app.sender.getLoginInfo()
-      app.selfId = info.userId
+      app.options.selfId = info.userId
       app._registerSelfId()
     }))
   }
@@ -71,6 +85,9 @@ export async function getSelfIds () {
 export type MajorContext <T extends Context> = T & {
   except (...ids: number[]): T
 }
+
+const appScope: ContextScope = [[null, []], [null, []], [null, []]]
+const appIdentifier = ContextScope.stringify(appScope)
 
 export class App extends Context {
   app = this
@@ -91,10 +108,10 @@ export class App extends Context {
 
   private _middlewareCounter = 0
   private _middlewareSet = new Set<number>()
-  private _contexts: Record<string, Context> = { '-;-;-': this }
+  private _contexts: Record<string, Context> = { [appIdentifier]: this }
 
   constructor (public options: AppOptions = {}) {
-    super([[null, []], [null, []], [null, []]])
+    super(appIdentifier, appScope)
     appList.push(this)
     if (options.database && Object.keys(options.database).length) {
       this.database = createDatabase(options.database)
@@ -118,8 +135,8 @@ export class App extends Context {
     return this.options.selfId
   }
 
-  set selfId (value) {
-    this.options.selfId = value
+  get version () {
+    return this.server && this.server.version
   }
 
   _registerSelfId () {
@@ -137,9 +154,12 @@ export class App extends Context {
   }
 
   _createContext <T extends Context> (scope: ContextScope) {
-    const identifier = getIdentifier(scope)
+    scope = scope.map(([include, exclude]) => {
+      return include ? [include.sort(), exclude] : [include, exclude.sort()]
+    })
+    const identifier = ContextScope.stringify(scope)
     if (!this._contexts[identifier]) {
-      const ctx = this._contexts[identifier] = new Context(scope)
+      const ctx = this._contexts[identifier] = new Context(identifier, scope)
       ctx.database = this.database
       ctx.sender = this.sender
       ctx.app = this

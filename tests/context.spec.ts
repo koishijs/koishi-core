@@ -38,6 +38,18 @@ describe('Composition API', () => {
     expect(app.minus(app.user(123))).toBe(app.groups.plus(app.discusses).plus(app.users.except(123)))
   })
 
+  test('context.prototype.intersect', () => {
+    expect(app.user(123, 456).intersect(app.user(456, 789))).toBe(app.user(456))
+    expect(app.user(123, 456).intersect(app.users.except(456, 789))).toBe(app.user(123))
+    expect(app.users.except(123, 456).intersect(app.user(456, 789))).toBe(app.user(789))
+    expect(app.users.except(123, 456).intersect(app.users.except(456, 789))).toBe(app.users.except(123, 456, 789))
+
+    expect(app.user(123).intersect(app.group(456))).toBe(app.group(456).intersect(app.user(123)))
+    expect(app.user(123).intersect(app.groups.except(123))).toBe(app.groups.except(123).intersect(app.user(123)))
+    expect(app.users.except(123).intersect(app.group(456))).toBe(app.group(456).intersect(app.users.except(123)))
+    expect(app.users.except(123).intersect(app.groups.except(123))).toBe(app.groups.except(123).intersect(app.users.except(123)))
+  })
+
   test('context.prototype.inverse', () => {
     expect(app.inverse()).toBe(app.user())
     expect(app.users.except(123).inverse()).toBe(app.groups.plus(app.discusses).plus(app.user(123)))
