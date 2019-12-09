@@ -153,7 +153,8 @@ export class App extends Context {
     }
   }
 
-  _createContext <T extends Context> (scope: ContextScope) {
+  _createContext <T extends Context> (scope: string | ContextScope) {
+    if (typeof scope === 'string') scope = ContextScope.parse(scope)
     scope = scope.map(([include, exclude]) => {
       return include ? [include.sort(), exclude] : [include, exclude.sort()]
     })

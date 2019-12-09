@@ -17,11 +17,9 @@ export type Plugin <T extends Context = Context, U = any> = PluginFunction<T, U>
 
 type Subscope = [number[], number[]]
 export type ContextScope = Subscope[]
-type ReadonlySubscope = readonly [readonly number[], readonly number[]]
-export type ReadonlyContextScope = readonly ReadonlySubscope[]
 
 export namespace ContextScope {
-  export function stringify (scope: ReadonlyContextScope) {
+  export function stringify (scope: ContextScope) {
     return scope.map(([include, exclude], index) => {
       const type = contextTypes[index]
       const sign = include ? '+' : '-'
@@ -43,7 +41,7 @@ export namespace ContextScope {
   }
 }
 
-const noopScope: ReadonlyContextScope = [[[], null], [[], null], [[], null]]
+const noopScope: ContextScope = [[[], null], [[], null], [[], null]]
 const noopIdentifier = ContextScope.stringify(noopScope)
 
 export class Context {
@@ -52,7 +50,7 @@ export class Context {
   public database: Database
   public receiver = new EventEmitter()
 
-  constructor (public readonly identifier: string, private _scope: ReadonlyContextScope) {}
+  constructor (public readonly identifier: string, private readonly _scope: ContextScope) {}
 
   inverse () {
     return this.app._createContext(this._scope.map(([include, exclude]) => {
