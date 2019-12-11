@@ -38,7 +38,7 @@ export class Sender {
         headers.Authorization = `Token ${app.options.token}`
       }
       this._post = async (action, params = {}) => {
-        const uri = new URL(action, this.app.options.httpServer).href
+        const uri = new URL(action, this.app.options.server).href
         const { data } = await axios.get<CQResponse>(uri, { params, headers })
         return data
       }

@@ -1,6 +1,5 @@
 import { isInteger, getDateNumber } from 'koishi-utils'
 import { NextFunction, Middleware } from './context'
-import { UserData } from './database'
 import { Command } from './command'
 import { MessageMeta } from './meta'
 import leven from 'leven'
@@ -38,11 +37,6 @@ export function getSenderName (meta: MessageMeta) {
   return meta.messageType !== 'private' ? `[CQ:at,qq=${meta.userId}]` : meta.sender.card || meta.sender.nickname
 }
 
-export function getUserName (user: Pick<UserData, 'id' | 'name'>) {
-  const idString = '' + user.id
-  return user.name === idString ? idString : user.name
-}
-
 export function getContextId (meta: MessageMeta) {
   if (meta.messageType === 'group') {
     return 'g' + meta.groupId
@@ -71,19 +65,20 @@ interface SuggestOptions {
   next: NextFunction
   prefix: string
   suffix: string
+  coefficient?: number
   command: Command | ((suggestion: string) => Command)
   execute: (suggestion: string, meta: MessageMeta, next: NextFunction) => any
 }
 
-export const SIMILARITY_COEFFICIENT = 0.4
+const SIMILARITY_COEFFICIENT = 0.4
 
-function findSimilar (target: string) {
-  return (name: string) => name.length > 2 && leven(name, target) <= name.length * SIMILARITY_COEFFICIENT
+function findSimilar (target: string, coefficient = SIMILARITY_COEFFICIENT) {
+  return (name: string) => name.length > 2 && leven(name, target) <= name.length * coefficient
 }
 
-export function showSuggestions (options: SuggestOptions) {
-  const { target, items, meta, next, prefix, suffix, execute } = options
-  const suggestions = items.filter(findSimilar(target))
+export function showSuggestions (options: SuggestOptions): Promise<void> {
+  const { target, items, meta, next, prefix, suffix, execute, coefficient } = options
+  const suggestions = items.filter(findSimilar(target, coefficient))
   if (!suggestions.length) return next()
 
   return next(async () => {

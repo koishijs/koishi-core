@@ -91,16 +91,16 @@ export function createGroup (id: number, assignee: number) {
   return result
 }
 
-export interface Database extends Subdatabases {
-  // user methods
+export interface UserTable {
   getUser <K extends UserField> (userId: number, defaultAuthority?: number, fields?: K[]): Promise<Pick<UserData, K | 'id'>>
   getUsers <K extends UserField> (ids: number[], fields?: K[]): Promise<Pick<UserData, K>[]>
   getAllUsers <K extends UserField> (fields?: K[]): Promise<Pick<UserData, K>[]>
   setUser (userId: number, data: Partial<UserData>): Promise<any>
   observeUser <K extends UserField> (user: number | UserData, defaultAuthority?: number, fields?: K[]): Promise<User<K>>
   getUserCount (): Promise<number>
+}
 
-  // group methods
+export interface GroupTable {
   getGroup <K extends GroupField> (groupId: number, selfId?: number, fields?: K[]): Promise<Pick<GroupData, K | 'id'>>
   getAllGroups <K extends GroupField> (fields?: K[], assignees?: number[]): Promise<Pick<GroupData, K>[]>
   setGroup (groupId: number, data: Partial<GroupData>): Promise<any>
@@ -108,20 +108,33 @@ export interface Database extends Subdatabases {
   getGroupCount (): Promise<number>
 }
 
-export interface DatabaseConfig {}
+export interface Tables {
+  user: UserTable
+  group: GroupTable
+}
+
+type TableType = keyof Tables
+
+type UnionToIntersection <U> = (U extends any ? (key: U) => void : never) extends (key: infer I) => void ? I : never
+
+export type Database = Subdatabases & UnionToIntersection<Tables[TableType]>
+
+export interface DatabaseConfig {
+  $tables?: Partial<Record<TableType, SubdatabaseType>>
+}
 
 export interface Subdatabases {}
 
 type SubdatabaseType = keyof Subdatabases
 
-interface Subdatabase <K extends SubdatabaseType> {
+interface Subdatabase <K extends SubdatabaseType = SubdatabaseType> {
   new (config: K extends keyof DatabaseConfig ? DatabaseConfig[K] : void): Subdatabases[K]
-  _injections?: {}
+  _injections?: Partial<Record<TableType, {}>>
 }
 
-const subdatabases: { [K in SubdatabaseType]: Subdatabase<K> } = {}
+const subdatabases: { [K in SubdatabaseType]?: Subdatabase<K> } = {}
 
-export function registerSubdatabase <K extends SubdatabaseType> (name: K, subdatabase: Subdatabase<K>) {
+export function registerDatabase <K extends SubdatabaseType> (name: K, subdatabase: Subdatabase<K>) {
   subdatabases[name] = subdatabase as any
   subdatabase._injections = {}
 }
@@ -131,19 +144,34 @@ type DatabaseInjections <K extends SubdatabaseType> = {
     Database[M] extends (...args: infer P) => infer R ? (this: DatabaseInjections<K> & Subdatabases[K], ...args: P) => R : never
 }
 
-export function injectMethods <K extends SubdatabaseType> (name: K, methods: DatabaseInjections<K>) {
-  if (!subdatabases[name]) return
-  Object.assign((subdatabases[name] as Subdatabase<K>)._injections, methods)
+export function injectMethods <K extends SubdatabaseType, T extends TableType> (name: K, table: T, methods: DatabaseInjections<K>) {
+  if (!subdatabases[name]) throw new Error(`database "${name}" not found`)
+  const injections = (subdatabases[name] as Subdatabase<K>)._injections
+  if (!injections[table]) injections[table] = {}
+  Object.assign(injections[table], methods)
 }
 
 export function createDatabase (config: DatabaseConfig) {
   const database = {} as Database
+  const explicitTables = config.$tables || {}
+  const implicitTables = {} as Partial<Record<TableType, SubdatabaseType>>
+  for (const table in explicitTables) {
+    const name = explicitTables[table]
+    if (!config[name]) throw new Error(`database "${name}" not configurated`)
+  }
   for (const type in subdatabases) {
-    if (!config[type]) return
-    const injections = subdatabases[type]._injections
+    if (!config[type]) continue
+    const injections = (subdatabases[type] as Subdatabase)._injections
     const subdatabase = database[type] = new subdatabases[type](config[type])
-    for (const name in injections) {
-      subdatabase[name] = database[name] = injections[name].bind(subdatabase)
+    for (const table in injections) {
+      if (!explicitTables[table] && implicitTables[table]) {
+        throw new Error(`database "${implicitTables[table]}" and "${type}" conflict on table "${table}"`)
+      } else if (!explicitTables[table] || explicitTables[table] === type) {
+        implicitTables[table] = type
+        for (const name in injections[table]) {
+          subdatabase[name] = database[name] = injections[table][name].bind(subdatabase)
+        }
+      }
     }
   }
   return database

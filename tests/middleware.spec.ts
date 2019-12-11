@@ -21,7 +21,7 @@ beforeAll(() => {
   app = new App({
     type: 'http',
     port: CLIENT_PORT,
-    httpServer: SERVER_URL,
+    server: SERVER_URL,
     selfId: 514,
   })
 

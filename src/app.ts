@@ -31,10 +31,10 @@ export interface AppOptions {
   token?: string
   secret?: string
   selfId?: number
-  wsServer?: string
-  httpServer?: string
+  server?: string
   database?: DatabaseConfig
   type?: ServerType
+  similarityCoefficient?: number
 }
 
 const showLog = debug('koishi')
@@ -357,6 +357,7 @@ export class App extends Context {
       prefix: '没有此命令。',
       suffix: '发送空行以调用推测的指令。',
       items: Object.keys(this._commandMap),
+      coefficient: this.options.similarityCoefficient,
       command: suggestion => this._commandMap[suggestion],
       execute: async (suggestion, meta, next) => {
         const newMessage = suggestion + message.slice(target.length)

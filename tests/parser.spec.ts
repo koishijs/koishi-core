@@ -1,4 +1,5 @@
-import { App, Command, ParsedLine } from '../src'
+import { App, Command } from '../src'
+import { ParsedLine } from '../src/parser'
 
 let app: App, cmd1: Command, cmd2: Command, result: ParsedLine
 

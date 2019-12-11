@@ -90,7 +90,7 @@ export class HttpServer extends Server {
   async _listen () {
     const { port } = this.apps[0].options
     this.server.listen(port)
-    if (this.apps[0].options.httpServer) {
+    if (this.apps[0].options.server) {
       try {
         this.version = await this.apps[0].sender.getVersionInfo()
       } catch (error) {
@@ -115,7 +115,7 @@ export class WsClient extends Server {
   constructor (app: App) {
     super(app)
 
-    this.socket = new WebSocket(app.options.wsServer, {
+    this.socket = new WebSocket(app.options.server, {
       headers: {
         Authorization: `Bearer ${app.options.token}`,
       },
@@ -155,7 +155,7 @@ export class WsClient extends Server {
           }
           if (!resolved) {
             resolved = true
-            const { wsServer } = this.apps[0].options
+            const { server: wsServer } = this.apps[0].options
             showServerLog('connect to ws server:', wsServer)
             resolve()
           }
@@ -184,7 +184,7 @@ export type ServerType = 'http' | 'ws' // 'ws-reverse'
 
 const serverTypes: Record<ServerType, [keyof AppOptions, Record<keyof any, Server>, new (app: App) => Server]> = {
   http: ['port', {}, HttpServer],
-  ws: ['wsServer', {}, WsClient],
+  ws: ['server', {}, WsClient],
 }
 
 export function createServer (app: App) {

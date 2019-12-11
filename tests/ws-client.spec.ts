@@ -26,13 +26,13 @@ beforeAll(async () => {
 
   app1 = new App({
     type: 'ws',
-    wsServer: SERVER_URL,
+    server: SERVER_URL,
     selfId: 514,
   })
 
   app2 = new App({
     type: 'ws',
-    wsServer: SERVER_URL,
+    server: SERVER_URL,
     selfId: 515,
   })
 

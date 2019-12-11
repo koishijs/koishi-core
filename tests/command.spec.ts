@@ -44,18 +44,13 @@ describe('register commands', () => {
     }).not.toThrow()
 
     expect(() => {
-      app.user(10000).command('f')
-      app.command('f')
-    }).toThrow(errors.INVALID_CONTEXT)
-
-    expect(() => {
       app.command('g').alias('y')
       app.command('h').alias('y')
     }).toThrow(errors.DUPLICATE_COMMAND)
   })
 })
 
-describe.only('register subcommands', () => {
+describe('register subcommands', () => {
   beforeEach(() => app = new App())
 
   test('command.subcommand', () => {

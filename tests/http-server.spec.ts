@@ -13,21 +13,21 @@ beforeAll(() => {
   app1 = new App({
     type: 'http',
     port: CLIENT_PORT,
-    httpServer: SERVER_URL,
+    server: SERVER_URL,
     selfId: 514,
   })
 
   app2 = new App({
     type: 'http',
     port: CLIENT_PORT,
-    httpServer: SERVER_URL,
+    server: SERVER_URL,
     selfId: 515,
   })
 
   app3 = new App({
     type: 'http',
     port: CLIENT_PORT + 1,
-    httpServer: SERVER_URL,
+    server: SERVER_URL,
     selfId: 516,
     secret: 'secret',
   })
